@@ -1,13 +1,10 @@
 """Interactive Streamlit UI for Stop Loss Calculator."""
 
-import csv
-import io
 import json
 from datetime import datetime
 from decimal import Decimal
 
 import streamlit as st
-
 from src.stoploss.cashflow import calculate_pnl
 from src.stoploss.schemas import MarginLoanInput, PnLInput, SizingInput
 from src.stoploss.sizing import size_by_percent_stop
@@ -226,26 +223,29 @@ def pnl_panel():
     margin_loans = []
     if num_loans > 0:
         for i in range(num_loans):
-            with st.expander(f"Loan {i+1}", expanded=(i == 0)):
+            with st.expander(f"Loan {i + 1}", expanded=(i == 0)):
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     loan_amt = st.number_input(
-                        f"Amount Loan {i+1} ($)",
+                        f"Amount Loan {i + 1} ($)",
                         min_value=0.0,
                         value=5000.0,
                         key=f"pnl_loan_amt_{i}",
                     )
                 with col2:
-                    apr = st.number_input(
-                        f"APR Loan {i+1} (%)",
-                        min_value=0.0,
-                        value=6.5,
-                        step=0.1,
-                        key=f"pnl_loan_apr_{i}",
-                    ) / 100
+                    apr = (
+                        st.number_input(
+                            f"APR Loan {i + 1} (%)",
+                            min_value=0.0,
+                            value=6.5,
+                            step=0.1,
+                            key=f"pnl_loan_apr_{i}",
+                        )
+                        / 100
+                    )
                 with col3:
                     days = st.number_input(
-                        f"Days Loan {i+1}",
+                        f"Days Loan {i + 1}",
                         min_value=0,
                         value=1,
                         key=f"pnl_loan_days_{i}",
@@ -294,8 +294,7 @@ def pnl_panel():
 
         win_color = "green" if result.net_win > 0 else "red"
         net_win_msg = (
-            f"### <span style='color:{win_color}'>"
-            f"Net Win: ${float(result.net_win):.2f}</span>"
+            f"### <span style='color:{win_color}'>Net Win: ${float(result.net_win):.2f}</span>"
         )
         st.markdown(net_win_msg, unsafe_allow_html=True)
 
@@ -312,8 +311,7 @@ def pnl_panel():
         loss_color = "red"
         net_loss = result.net_loss + result.total_fees_slip
         net_loss_msg = (
-            f"### <span style='color:{loss_color}'>"
-            f"Net Loss: -${float(net_loss):.2f}</span>"
+            f"### <span style='color:{loss_color}'>Net Loss: -${float(net_loss):.2f}</span>"
         )
         st.markdown(net_loss_msg, unsafe_allow_html=True)
 

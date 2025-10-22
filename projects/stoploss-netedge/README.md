@@ -206,6 +206,122 @@ Reference: https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_
 - **Source**: Federal Reserve Bank of New York
 - **Link**: https://www.newyorkfed.org/markets/reference-rates/sofr
 
+## Limitations & Assumptions
+
+### Tax Calculation Limitations
+
+1. **Daily Trading Tax Wash Sales**
+   - Wash sale rules (IRS Sec 1091) are NOT calculated. In futures, you must manually track wash sales with other positions in the same *contract* if closed at a loss and re-entered within 30 days.
+   - **Recommendation**: Use tax software (e.g., TurboTax for traders) to detect wash sales across your full portfolio.
+
+2. **No State/Local Income Tax**
+   - This calculator includes **US federal taxes only** (Form 6781 for §1256 or ordinary income).
+   - State income taxes (CA, NY, IL, etc.) vary 1–13% and must be added separately based on your state.
+   - Futures may qualify for special treatment in some states (e.g., Illinois has no income tax on §1256 gains).
+
+3. **Section §1256 Futures Only**
+   - 60% long-term / 40% short-term split applies ONLY to:
+     - Exchange-traded futures (ES, NQ, CL, GC ✓)
+     - NOT to options, forex, or crypto
+   - Per-trade basis: Each win/loss is segregated 60/40, not netted annually.
+
+4. **No Tax Credits or Deductions**
+   - Does NOT calculate:
+     - Trader status mark-to-market (MTM) election
+     - Home office deduction
+     - Margin interest deduction (partial via Sch B)
+     - Depreciation
+     - Vehicle/equipment costs
+   - These are valuable but require tax professional input.
+
+### Margin Loan Cascading
+
+Up to **3 separate margin loans** are supported, calculated sequentially for 360-day accrual:
+
+#### All 3 loans filled example
+
+```python
+loans = [
+    MarginLoanInput(loan_amount=5000, apr=0.065, days_held=5),   # Loan 1: Reg T (6.5%)
+    MarginLoanInput(loan_amount=3000, apr=0.085, days_held=3),   # Loan 2: Short rebate tier (8.5%)
+    MarginLoanInput(loan_amount=2000, apr=0.120, days_held=1),   # Loan 3: Emergency (12%)
+]
+
+# Total margin interest for 5 days:
+# Loan 1: 5000 × 0.065 × (5/360) = $4.51
+# Loan 2: 3000 × 0.085 × (3/360) = $2.13
+# Loan 3: 2000 × 0.120 × (1/360) = $0.67
+# Total: $7.31
+```
+
+Brokers with cascading tiers:
+
+- **Interactive Brokers**: Reg T (IBKR base), then Portfolio Margin excess
+- **Schwab/E*TRADE**: Tiered by account size and balance
+- **Tradovate**: Flat rate (no cascade)
+
+### Contract Limits & Assumptions
+
+| Contract | PPV | Tick | Min Stop (points) | RTH Hours | Margin (Reg T) |
+|----------|-----|------|-------------------|-----------|----------------|
+| ES       | 50  | 0.25 | 2–5               | 9:30–16:00 EST | $500–$1500 |
+| NQ       | 20  | 0.25 | 2–5               | 9:30–16:00 EST | $1000–$3000 |
+| CL       | 100 | 0.01 | 0.5–2.0           | 17:00–16:00 CT | $3000–$5000 |
+| GC       | 100 | 0.10 | 2–5               | 17:00–16:00 NY | $3000–$5000 |
+
+**Assumptions:**
+
+- **No CME holidays** applied (exchange closed).
+- **RTH (Regular Trading Hours) only**. Overnight/weekend sessions not modeled.
+- **Margin requirement** is static (actual requirement varies by broker and market conditions).
+- **No gap risk** over weekends/holidays.
+- **Slippage** is user-provided; actual market impact not calculated.
+
+### SOFR & Margin APR Context
+
+**Fed Funds Effective Rate vs. SOFR:**
+
+- **Fed Funds (Old)**: 2008–2023, manual administered rate
+- **SOFR (Secured Overnight Financing Rate)**: April 2023+, overnight repo-based rate
+  - Less volatile, more transparent than Fed Funds
+  - Brokers lag SOFR by 30–60 bps, then add spread
+
+**Example (as of Oct 2024):**
+
+```text
+SOFR (overnight): 5.33% p.a.
+Broker markup: +150 bps = 6.83% APR (typical retail)
+Interactive Brokers: SOFR + 25 bps = 5.58% (tightest)
+Schwab: SOFR + 100 bps = 6.33%
+```
+
+**To get live SOFR:**
+
+- [Federal Reserve SOFR rates](https://www.newyorkfed.org/markets/reference-rates/sofr)
+- Your broker's margin rates API (if available)
+
+---
+
+## Running the UI
+
+### Streamlit Web App
+
+```bash
+# Install dependencies
+pip install streamlit pydantic fastapi
+
+# Run the interactive calculator
+streamlit run ui_app.py
+```
+
+Open [`http://localhost:8501`](http://localhost:8501) in your browser. Two-panel layout:
+
+- **Left**: Position sizing (symbol, entry, stop loss %)
+- **Right**: P&L scenarios (win/loss analysis, taxes, margin costs)
+- **Export**: JSON or CSV for record-keeping
+
+---
+
 ## Development
 
 ### Testing
@@ -264,6 +380,7 @@ MIT
 ## References
 
 **Scripture anchors (KJV):**
+
 - Luke 14:28 — "For which of you, intending to build a tower, sitteth not down first, and counteth the cost, whether he have sufficient to finish it?"
 - Proverbs 11:1 — "A false balance is abomination to the LORD: but a just weight is his delight."
 - Ecclesiastes 3:1 — "To every thing there is a season, and a time to every purpose under the heaven."

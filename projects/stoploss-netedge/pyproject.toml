@@ -1,0 +1,78 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stoploss-netedge"
+version = "0.1.0"
+description = "Precision stop-loss calculator for futures trading with tax, energy, and margin accounting"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Stop Loss Calculator Contributors"}
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial",
+]
+
+dependencies = [
+    "pydantic>=2.0",
+    "typer[all]>=0.9",
+    "fastapi>=0.104",
+    "uvicorn>=0.24",
+    "streamlit>=1.30",
+    "requests>=2.31",
+    "pandas>=2.1",
+    "python-dateutil>=2.8",
+    "pytz>=2023.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1",
+    "black>=23.11",
+    "mypy>=1.7",
+    "types-requests",
+    "types-python-dateutil",
+]
+
+[project.scripts]
+stoploss = "stoploss.cli:app"
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "W", "I", "UP", "B", "A", "C4", "ARG", "RUF"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --strict-markers"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests requiring external API calls",
+]

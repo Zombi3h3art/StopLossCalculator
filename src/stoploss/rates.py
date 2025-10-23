@@ -1,4 +1,8 @@
-"""Margin loan interest calculation and SOFR reference rates."""
+"""Margin loan interest calculation and SOFR reference rates.
+
+- Margin interest uses a 360-day basis with daily accrual (Schwab/IBKR standard).
+- SOFR reference values are display-only defaults; see FRBNY for live rates.
+"""
 
 from dataclasses import dataclass
 from decimal import Decimal
@@ -84,6 +88,28 @@ SOFR_REFERENCE = {
     "source": "Federal Reserve Bank of New York",
     "note": "Display reference only; fetch live rates via API for trades",
 }
+
+
+def fetch_sofr_reference() -> dict[str, str]:
+    """Return SOFR reference values for API consumers.
+
+    Returns a dict with keys expected by the API layer/tests:
+    - current: current SOFR rate as a string
+    - avg_30: 30-day average as a string
+    - avg_90: 90-day average as a string
+    - source: source string
+
+    Notes:
+    - Values are static defaults; replace with a live fetch if desired and
+      cache results. Keep Decimal->str conversion here to preserve precision
+      without floats.
+    """
+    return {
+        "current": str(SOFR_REFERENCE["current_rate"]),
+        "avg_30": str(SOFR_REFERENCE["30_day_avg"]),
+        "avg_90": str(SOFR_REFERENCE["90_day_avg"]),
+        "source": SOFR_REFERENCE["source"],
+    }
 
 
 def sofr_context_display() -> dict:

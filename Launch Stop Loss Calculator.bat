@@ -9,21 +9,12 @@ echo.
 echo   Starting dashboard...
 
 set "SCRIPT_DIR=%~dp0"
-set "DEFAULT_PROJECT=%USERPROFILE%\Desktop\Python_Projects\projects\stop_loss_calculator\"
-set "PROJECT_DIR="
+set "PROJECT_DIR=%SCRIPT_DIR%"
 
-rem First, check if the batch file lives inside the project directory
-if exist "%SCRIPT_DIR%simple_dashboard.py" set "PROJECT_DIR=%SCRIPT_DIR%"
-
-rem If not, fall back to the default Desktop project location
-if not defined PROJECT_DIR if exist "%DEFAULT_PROJECT%simple_dashboard.py" set "PROJECT_DIR=%DEFAULT_PROJECT%"
-
-if not defined PROJECT_DIR (
-    echo   [ERROR] Could not locate the Stop Loss Calculator project.
-    echo          Looked in:
-    echo            1) %SCRIPT_DIR%
-    echo            2) %DEFAULT_PROJECT%
-    echo          Update this launcher with the correct path.
+if not exist "%PROJECT_DIR%simple_dashboard.py" (
+    echo   [ERROR] Could not locate simple_dashboard.py next to this launcher.
+    echo          Ensure the batch file remains inside the Stop Loss Calculator project folder
+    echo          (or create a shortcut to it) and try again.
     goto :PAUSE_EXIT
 )
 

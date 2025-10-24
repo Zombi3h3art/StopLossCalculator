@@ -16,7 +16,7 @@ Precision stop-loss calculator for traders. Real-time P&L calculations accountin
 
 ### Option 1: Desktop Launcher (Easiest)
 
-1. Double-click **`Launch Stop Loss Calculator.bat`** (copy the file from the project root to your Desktop or create a shortcut)
+1. Double-click **`Launch Stop Loss Calculator.bat`** inside the project folder (or create a Desktop shortcut that points to it)
 2. Dashboard opens automatically in your browser
 3. Start calculating!
 

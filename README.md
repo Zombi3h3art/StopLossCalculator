@@ -16,14 +16,14 @@ Precision stop-loss calculator for traders. Real-time P&L calculations accountin
 
 ### Option 1: Desktop Launcher (Easiest)
 
-1. Double-click **`Launch Stop Loss Calculator.bat`** on your Desktop
+1. Double-click **`Launch Stop Loss Calculator.bat`** (copy the file from the project root to your Desktop or create a shortcut)
 2. Dashboard opens automatically in your browser
 3. Start calculating!
 
 ### Option 2: Manual Launch
 
 ```bash
-cd "c:\Users\cwmil\Desktop\Python_Projects\projects\Stop Loss Calculator"
+cd "c:\Users\cwmil\Desktop\Python_Projects\projects\stop_loss_calculator"
 pip install streamlit pydantic
 streamlit run simple_dashboard.py
 ```

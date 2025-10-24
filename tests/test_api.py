@@ -40,7 +40,8 @@ class TestSizingEndpoint:
         assert data["success"] is True
         assert data["data"]["symbol"] == "ES"
         assert data["data"]["qty"] > 0
-        assert data["data"]["stop_price"] < Decimal("5050")
+        stop_price = Decimal(str(data["data"]["stop_price"]))
+        assert stop_price < Decimal("5050")
 
     def test_size_nq_basic(self):
         """Test NQ sizing calculation via API."""
@@ -102,7 +103,8 @@ class TestSizingEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert data["data"]["stop_price"] > Decimal("5050")  # Stop above entry for short
+        stop_price = Decimal(str(data["data"]["stop_price"]))
+        assert stop_price > Decimal("5050")  # Stop above entry for short
 
 
 class TestPnLEndpoint:
@@ -128,8 +130,10 @@ class TestPnLEndpoint:
         data = response.json()
         assert data["success"] is True
         assert data["data"]["symbol"] == "ES"
-        assert data["data"]["gross_win"] > 0
-        assert data["data"]["gross_loss"] > 0
+        gross_win = Decimal(str(data["data"]["gross_win"]))
+        gross_loss = Decimal(str(data["data"]["gross_loss"]))
+        assert gross_win > 0
+        assert gross_loss > 0
 
     def test_pnl_with_1256_tax(self):
         """Test P&L with §1256 tax mode."""

@@ -18,6 +18,7 @@ def size(
     risk: float = typer.Option(None, "--risk", help="Max risk in dollars"),
     fees_open: float = typer.Option(0, "--fees-open", help="Opening fee ($)"),
     fees_close: float = typer.Option(0, "--fees-close", help="Closing fee ($)"),
+    slip_open: float = typer.Option(0, "--slip-open", help="Opening slippage ($)"),
 ) -> None:
     """Calculate position size and stop price."""
     from .sizing import size_by_percent_stop
@@ -37,21 +38,25 @@ def size(
                 pct_stop=Decimal(str(pct_stop)),
                 fees_open=Decimal(str(fees_open)),
                 fees_close=Decimal(str(fees_close)),
+                slip_open=Decimal(str(slip_open)),
             )
         else:
             typer.echo("ATR/structure sizing not yet implemented in CLI; use pct-stop")
             raise typer.Exit(1)
 
         typer.echo(f"\n{symbol} {side.upper()} Position")
-        typer.echo(f"  Entry:        {result.entry_price}")
+        typer.echo(f"  Entry:        {result.entry}")
         typer.echo(f"  Qty:          {result.qty} contracts")
         typer.echo(f"  Stop:         {result.stop_price}")
-        typer.echo(f"  Loss/unit:    {result.loss_per_unit}")
-        typer.echo(f"  Gross loss:   ${result.loss_dollars:.2f}")
+        typer.echo(f"  Risk/unit:    {result.risk_per_unit}")
+        typer.echo(f"  Risk$/ctr:    {result.risk_dollars_per_contract}")
+        typer.echo(f"  Risk cash:    {result.risk_cash}")
+        typer.echo(f"  Fees (open):  {result.fees_open}")
+        typer.echo(f"  Fees (close): {result.fees_close}")
         typer.echo(f"  Method:       {result.method}")
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -77,31 +82,11 @@ def pnl(
 ) -> None:
     """Calculate gross and net P&L with all costs."""
     from .cashflow import calculate_pnl
-    from .energy import estimate_energy_cost
-    from .rates import MarginLoan, calculate_total_margin_interest
-    from .taxes import calculate_tax
+    from .rates import MarginLoan
 
     try:
-        # Calculate tax
-        gross_profit = Decimal(str(abs(float(target) - float(entry)) * qty * 50))  # approx
-        tax = calculate_tax(
-            gross_profit,
-            mode=tax_mode,
-            st_rate=Decimal(str(st_rate)),
-            lt_rate=Decimal(str(lt_rate)),
-        )
-
-        # Energy cost
-        energy_cost = Decimal("0")
-        if energy_kwh > 0:
-            energy_cost = estimate_energy_cost(
-                power_kw=Decimal("0.2"),  # default estimate
-                hours_used=Decimal("1"),
-                kwh_price_cents=Decimal("14"),
-            )
-
         # Margin interest
-        loans_list = []
+        loans_list: list[MarginLoan] = []
         for loan_str in [loan1, loan2, loan3]:
             if loan_str and ":" in loan_str:
                 amt, apr = loan_str.split(":")
@@ -113,8 +98,6 @@ def pnl(
                     )
                 )
 
-        margin_int = calculate_total_margin_interest(loans_list) if loans_list else Decimal("0")
-
         result = calculate_pnl(
             symbol=symbol,
             side=side,
@@ -124,32 +107,37 @@ def pnl(
             stop=Decimal(str(stop)),
             fees_open=Decimal(str(fees_open)),
             fees_close=Decimal(str(fees_close)),
-            slip_open=Decimal(str(slip_open)),
-            slip_close=Decimal(str(slip_close)),
-            energy_cost=energy_cost,
-            margin_interest=margin_int,
-            tax_on_win=tax,
+            slippage_open=Decimal(str(slip_open)),
+            slippage_close=Decimal(str(slip_close)),
+            energy_kwh=Decimal(str(energy_kwh)),
+            margin_loans=loans_list,
+            tax_mode=tax_mode,
+            st_rate=Decimal(str(st_rate)),
+            lt_rate=Decimal(str(lt_rate)),
         )
 
         typer.echo(f"\n{symbol} {side.upper()} P&L Analysis")
-        typer.echo(f"  Entry:        {result.entry_price}")
-        typer.echo(f"  Target:       {result.target_price}")
-        typer.echo(f"  Stop:         {result.stop_price}")
+        typer.echo(f"  Entry:        {result.entry}")
+        typer.echo(f"  Target:       {result.target}")
+        typer.echo(f"  Stop:         {result.stop}")
         typer.echo(f"  Qty:          {result.qty}")
         typer.echo("\n  Gross P&L:")
         typer.echo(f"    Win:        ${result.gross_win:,.2f}")
         typer.echo(f"    Loss:       ${result.gross_loss:,.2f}")
         typer.echo("\n  Costs:")
-        typer.echo(f"    Fees/Slip:  ${result.total_fees_slip:,.2f}")
-        typer.echo(f"    Energy:     ${result.energy_cost:,.2f}")
-        typer.echo(f"    Margin Int: ${result.margin_interest:,.2f}")
-        typer.echo(f"    Tax (win):  ${result.tax_on_win:,.2f}")
+        breakdown = result.breakdown
+        typer.echo(f"    Fees Open:  ${breakdown.get('fees_open', Decimal('0')):,.2f}")
+        typer.echo(f"    Fees Close: ${breakdown.get('fees_close', Decimal('0')):,.2f}")
+        typer.echo(f"    Total Fees: ${breakdown.get('total_fees_slippage', Decimal('0')):,.2f}")
+        typer.echo(f"    Energy:     ${breakdown.get('energy_cost', Decimal('0')):,.2f}")
+        typer.echo(f"    Margin Int: ${breakdown.get('margin_interest', Decimal('0')):,.2f}")
+        typer.echo(f"    Tax (win):  ${breakdown.get('tax_on_win', Decimal('0')):,.2f}")
         typer.echo("\n  Net P&L:")
-        typer.echo(f"    Win:        ${result.net_win:,.2f}")
-        typer.echo(f"    Loss:       ${result.net_loss:,.2f}")
+        typer.echo(f"    Win:        ${result.net_win_scenario:,.2f}")
+        typer.echo(f"    Loss:       ${result.net_loss_scenario:,.2f}")
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 if __name__ == "__main__":

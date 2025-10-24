@@ -58,8 +58,14 @@ async def calculate_size(input_data: SizingInput) -> ApiResponse:
     {
         "success": true,
         "data": {
-            "symbol": "ES",
+            risk_per_unit=result.risk_per_unit,
+            risk_per_unit_actual=result.risk_per_unit_actual,
+            risk_dollars_per_contract=result.risk_dollars_per_contract,
             "side": "long",
+            risk_cash=result.risk_cash,
+            fees_open=result.fees_open,
+            fees_close=result.fees_close,
+            slippage_open=result.slippage_open,
             "qty": 1,
             "entry": "5050.00",
             "stop_price": "5029.75",
@@ -70,6 +76,12 @@ async def calculate_size(input_data: SizingInput) -> ApiResponse:
     ```
     """
     try:
+        if input_data.pct_stop is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="pct_stop is required for percent-stop sizing",
+            )
+
         result = size_by_percent_stop(
             symbol=input_data.symbol,
             side=input_data.side,
@@ -77,6 +89,8 @@ async def calculate_size(input_data: SizingInput) -> ApiResponse:
             account_equity=Decimal(str(input_data.account_equity)),
             leverage=Decimal(str(input_data.leverage)),
             pct_stop=Decimal(str(input_data.pct_stop)),
+            fees_open=Decimal(str(input_data.fees_open)),
+            fees_close=Decimal(str(input_data.fees_close)),
         )
 
         output = SizingOutput(
@@ -86,7 +100,14 @@ async def calculate_size(input_data: SizingInput) -> ApiResponse:
             entry=result.entry,
             stop_price=result.stop_price,
             risk_per_unit=result.risk_per_unit,
+            risk_per_unit_actual=result.risk_per_unit_actual,
+            risk_dollars_per_contract=result.risk_dollars_per_contract,
             gross_exposure=result.gross_exposure,
+            risk_cash=result.risk_cash,
+            fees_open=result.fees_open,
+            fees_close=result.fees_close,
+            slippage_open=result.slippage_open,
+            method=result.method,
         )
 
         return ApiResponse(success=True, data=output)
@@ -157,9 +178,9 @@ async def calculate_pnl_api(input_data: PnLInput) -> ApiResponse:
             energy_kwh=Decimal(str(input_data.energy_kwh or 0)),
             energy_cost_per_kwh=Decimal(str(input_data.energy_cost_per_kwh or "0.14")),
             margin_loans=input_data.margin_loans or [],
-            tax_mode=input_data.tax_mode or "short_term",
+            tax_mode=input_data.tax_mode,
             st_rate=Decimal(str(input_data.st_rate or "0.24")),
-            lt_rate=Decimal(str(input_data.lt_rate or "0.15")),
+            lt_rate=Decimal(str(input_data.lt_rate)) if input_data.lt_rate is not None else None,
         )
 
         output = PnLOutput(
@@ -171,8 +192,8 @@ async def calculate_pnl_api(input_data: PnLInput) -> ApiResponse:
             stop=result.stop,
             gross_win=result.gross_win,
             gross_loss=result.gross_loss,
-            net_win=result.net_win_scenario,
-            net_loss=result.net_loss_scenario,
+            net_win_scenario=result.net_win_scenario,
+            net_loss_scenario=result.net_loss_scenario,
             breakdown=result.breakdown,
         )
 

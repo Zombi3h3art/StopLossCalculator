@@ -26,12 +26,13 @@ class SizingInput(BaseModel):
 
     symbol: str = Field(
         ...,
-        description="Futures contract: ES, NQ, CL, or GC",
-        pattern="^(ES|NQ|CL|GC)$",
+        description="Futures contract symbol (validated downstream)",
+        min_length=1,
     )
-    side: Literal["long", "short"] = Field(
+    side: str = Field(
         ...,
         description="Trade direction: long or short",
+        min_length=1,
     )
     entry: Decimal = Field(
         ...,
@@ -98,47 +99,37 @@ class SizingInput(BaseModel):
 class SizingOutput(BaseModel):
     """Output schema for position sizing result."""
 
-    qty: int = Field(
-        ...,
-        gt=0,
-        description="Number of contracts to trade",
-    )
-    entry_price: Decimal = Field(
-        ...,
-        gt=0,
-        description="Entry price (validated)",
-    )
-    stop_price: Decimal = Field(
-        ...,
-        gt=0,
-        description="Stop loss price (rounded to nearest tick)",
-    )
-    loss_per_unit: Decimal = Field(
-        ...,
-        gt=0,
-        description="Loss per contract in price units",
-    )
-    loss_dollars: Decimal = Field(
-        ...,
-        gt=0,
-        description="Dollar loss if stopped out (qty x ppv x loss_per_unit)",
-    )
-    gross_exposure: Decimal = Field(
-        ...,
-        gt=0,
-        description="Total exposure (account_equity x leverage)",
-    )
-    method: str = Field(
-        ...,
-        description="Sizing method used: percent_stop or atr_stop",
-    )
+    symbol: str
+    side: Literal["long", "short"]
+    qty: int = Field(..., gt=0)
+    entry: Decimal = Field(..., gt=0)
+    stop_price: Decimal = Field(..., gt=0)
+    risk_per_unit: Decimal = Field(..., gt=0)
+    risk_per_unit_actual: Decimal = Field(..., gt=0)
+    risk_dollars_per_contract: Decimal = Field(..., gt=0)
+    gross_exposure: Decimal = Field(..., gt=0)
+    risk_cash: Decimal = Field(..., gt=0)
+    fees_open: Decimal = Field(..., ge=0)
+    fees_close: Decimal = Field(..., ge=0)
+    slippage_open: Decimal = Field(..., ge=0)
+    method: str
 
 
 class MarginLoanInput(BaseModel):
     """Single margin loan with APR and duration."""
 
-    loan_amount: Decimal = Field(
+    model_config = {
+        "populate_by_name": True,
+        "json_schema_extra": {
+            "examples": [
+                {"amount": 5000.0, "apr": 0.065, "days_held": 5},
+            ]
+        },
+    }
+
+    amount: Decimal = Field(
         ...,
+        alias="loan_amount",
         gt=0,
         decimal_places=2,
         description="Principal borrowed in dollars",
@@ -189,12 +180,13 @@ class PnLInput(BaseModel):
 
     symbol: str = Field(
         ...,
-        description="Futures contract: ES, NQ, CL, or GC",
-        pattern="^(ES|NQ|CL|GC)$",
+        description="Futures contract symbol (validated downstream)",
+        min_length=1,
     )
-    side: Literal["long", "short"] = Field(
+    side: str = Field(
         ...,
         description="Trade direction",
+        min_length=1,
     )
     qty: int = Field(
         ...,
@@ -229,12 +221,12 @@ class PnLInput(BaseModel):
         ge=0,
         decimal_places=2,
     )
-    slip_open: Decimal = Field(
+    slippage_open: Decimal = Field(
         default=Decimal("0"),
         ge=0,
         decimal_places=2,
     )
-    slip_close: Decimal = Field(
+    slippage_close: Decimal = Field(
         default=Decimal("0"),
         ge=0,
         decimal_places=2,
@@ -245,19 +237,13 @@ class PnLInput(BaseModel):
         decimal_places=2,
         description="Energy used in kWh (0.2 kW x 1 hour ≈ 0.2)",
     )
-    power_kw: Decimal = Field(
-        default=Decimal("0.2"),
+    energy_cost_per_kwh: Decimal = Field(
+        default=Decimal("0.14"),
         gt=0,
-        decimal_places=2,
-        description="Equipment power draw in kilowatts (default 0.2 kW)",
+        decimal_places=4,
+        description="Energy price in dollars per kWh",
     )
-    energy_rate_cents: Decimal = Field(
-        default=Decimal("14"),
-        gt=0,
-        decimal_places=1,
-        description="Energy price in cents per kWh (default 14¢ US average)",
-    )
-    tax_mode: Literal["short_term_ordinary", "section_1256"] = Field(
+    tax_mode: Literal["short_term", "short_term_ordinary", "1256", "section_1256"] = Field(
         default="section_1256",
         description="Tax calculation mode",
     )
@@ -286,65 +272,21 @@ class PnLOutput(BaseModel):
     """Output schema for P&L calculation."""
 
     symbol: str
+    side: Literal["long", "short"]
     qty: int
-    entry_price: Decimal
-    target_price: Decimal
-    stop_price: Decimal
-
-    gross_win: Decimal = Field(
-        ...,
-        description="Gross profit at target (before costs/taxes)",
-    )
-    gross_loss: Decimal = Field(
-        ...,
-        description="Gross loss at stop",
-    )
-
-    fees_open: Decimal
-    fees_close: Decimal
-    slip_open: Decimal
-    slip_close: Decimal
-    total_fees_slip: Decimal = Field(
-        ...,
-        description="Sum of all fees and slippage",
-    )
-
-    energy_cost: Decimal = Field(
-        ...,
-        description="Energy cost in dollars",
-    )
-    margin_interest: Decimal = Field(
-        ...,
-        description="Total margin interest (sum of all loans)",
-    )
-    tax_on_win: Decimal = Field(
-        ...,
-        description="Federal income tax on win scenario",
-    )
-
-    net_win: Decimal = Field(
-        ...,
-        description="Net profit after all costs and taxes",
-    )
-    net_loss: Decimal = Field(
-        ...,
-        description="Net loss (including all costs, no tax benefit)",
-    )
+    entry: Decimal
+    target: Decimal
+    stop: Decimal
+    gross_win: Decimal
+    gross_loss: Decimal
+    net_win_scenario: Decimal
+    net_loss_scenario: Decimal
+    breakdown: dict[str, Decimal]
 
 
 class ApiResponse(BaseModel):
     """Standard API response wrapper."""
 
-    status: Literal["success", "error"] = Field(...)
-    data: SizingOutput | PnLOutput | None = Field(
-        default=None,
-        description="Result data (null on error)",
-    )
-    error: str | None = Field(
-        default=None,
-        description="Error message (null on success)",
-    )
-    timestamp: str = Field(
-        ...,
-        description="ISO 8601 timestamp",
-    )
+    success: bool
+    data: SizingOutput | PnLOutput | dict | None = None
+    error: str | None = None

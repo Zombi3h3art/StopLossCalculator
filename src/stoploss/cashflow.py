@@ -1,10 +1,13 @@
 """Cashflow and P&L calculation with all costs."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from .contracts import Symbol, get_contract
+from .rates import MarginLoan, calculate_total_margin_interest
+from .taxes import TaxMode, calculate_tax
 
 
 @dataclass
@@ -12,26 +15,52 @@ class PnLResult:
     """Complete P&L breakdown with all costs and taxes."""
 
     symbol: Symbol
+    side: Literal["long", "short"]
     qty: int
-    entry_price: Decimal
-    target_price: Decimal  # Where we want to exit on win
-    stop_price: Decimal  # Where we stop out on loss
+    entry: Decimal
+    target: Decimal
+    stop: Decimal
 
-    gross_win: Decimal  # qty * ppv * (target - entry) for long
-    gross_loss: Decimal  # qty * ppv * (entry - stop) for long
+    gross_win: Decimal
+    gross_loss: Decimal
 
-    fees_open: Decimal
-    fees_close: Decimal
-    slip_open: Decimal
-    slip_close: Decimal
-    total_fees_slip: Decimal
+    net_win_scenario: Decimal
+    net_loss_scenario: Decimal
+    breakdown: dict[str, Decimal]
 
-    energy_cost: Decimal
-    margin_interest: Decimal
 
-    tax_on_win: Decimal
-    net_win: Decimal
-    net_loss: Decimal
+def _coerce_margin_loan(loan: Any) -> MarginLoan:
+    """Normalize margin loan input into a MarginLoan dataclass."""
+
+    if isinstance(loan, MarginLoan):
+        return loan
+
+    amount: Any = getattr(loan, "amount", None)
+    apr: Any = getattr(loan, "apr", None)
+    days: Any = getattr(loan, "days_held", None)
+
+    if amount is None:
+        try:
+            amount = loan.loan_amount  # type: ignore[attr-defined]
+        except AttributeError:
+            amount = None
+
+    if amount is None and isinstance(loan, dict):
+        amount = loan.get("amount") or loan.get("loan_amount")
+        apr = loan.get("apr", apr)
+        days = loan.get("days_held", days)
+
+    if amount is None or apr is None:
+        raise ValueError("Margin loan input requires amount and apr")
+
+    if days is None:
+        days = 1
+
+    return MarginLoan(
+        loan_amount=Decimal(str(amount)),
+        apr=Decimal(str(apr)),
+        days_held=int(days),
+    )
 
 
 def calculate_gross_pnl(
@@ -55,6 +84,8 @@ def calculate_gross_pnl(
     Returns:
         (gross_win, gross_loss) in dollars
     """
+    if side not in ("long", "short"):
+        raise ValueError(f"side must be 'long' or 'short', got {side}")
     contract = get_contract(symbol)
     qty_d = Decimal(qty)
     entry = Decimal(str(entry))
@@ -68,8 +99,11 @@ def calculate_gross_pnl(
         delta_win = entry - target
         delta_loss = stop - entry
 
-    gross_win = qty_d * contract.ppv_per_unit * delta_win
-    gross_loss = qty_d * contract.ppv_per_unit * delta_loss
+    if delta_win < 0 or delta_loss < 0:
+        raise ValueError("Invalid target/stop distances for the given side")
+
+    gross_win = (qty_d * contract.point_value * delta_win).quantize(Decimal("0.01"))
+    gross_loss = (qty_d * contract.point_value * delta_loss).quantize(Decimal("0.01"))
 
     return gross_win, gross_loss
 
@@ -83,11 +117,14 @@ def calculate_pnl(
     stop: Decimal,
     fees_open: Decimal = Decimal("0"),
     fees_close: Decimal = Decimal("0"),
-    slip_open: Decimal = Decimal("0"),
-    slip_close: Decimal = Decimal("0"),
-    energy_cost: Decimal = Decimal("0"),
-    margin_interest: Decimal = Decimal("0"),
-    tax_on_win: Decimal = Decimal("0"),
+    slippage_open: Decimal = Decimal("0"),
+    slippage_close: Decimal = Decimal("0"),
+    energy_kwh: Decimal = Decimal("0"),
+    energy_cost_per_kwh: Decimal = Decimal("0.14"),
+    margin_loans: Iterable[Any] | None = None,
+    tax_mode: TaxMode = "section_1256",
+    st_rate: Decimal = Decimal("0.24"),
+    lt_rate: Decimal | None = Decimal("0.15"),
 ) -> PnLResult:
     """Full P&L calculation with all costs.
 
@@ -111,32 +148,62 @@ def calculate_pnl(
     """
     gross_win, gross_loss = calculate_gross_pnl(symbol, side, qty, entry, target, stop)
 
-    fees_slip = Decimal(str(fees_open)) + Decimal(str(fees_close))
-    fees_slip += Decimal(str(slip_open)) + Decimal(str(slip_close))
-    energy_cost = Decimal(str(energy_cost))
-    margin_interest = Decimal(str(margin_interest))
-    tax_on_win = Decimal(str(tax_on_win))
+    fees_open = Decimal(str(fees_open))
+    fees_close = Decimal(str(fees_close))
+    slippage_open = Decimal(str(slippage_open))
+    slippage_close = Decimal(str(slippage_close))
+    energy_kwh = Decimal(str(energy_kwh))
+    energy_cost_per_kwh = Decimal(str(energy_cost_per_kwh))
 
-    # Net results
-    net_win = gross_win - fees_slip - energy_cost - margin_interest - tax_on_win
-    net_loss = -(gross_loss + fees_slip + energy_cost + margin_interest)
+    fees_open_q = fees_open.quantize(Decimal("0.01"))
+    fees_close_q = fees_close.quantize(Decimal("0.01"))
+    slippage_open_q = slippage_open.quantize(Decimal("0.01"))
+    slippage_close_q = slippage_close.quantize(Decimal("0.01"))
+    total_fees_slip = (fees_open_q + fees_close_q + slippage_open_q + slippage_close_q).quantize(
+        Decimal("0.01")
+    )
+
+    if energy_kwh > 0:
+        energy_cost = (energy_kwh * energy_cost_per_kwh).quantize(Decimal("0.01"))
+    else:
+        energy_cost = Decimal("0.00")
+
+    loan_records: list[MarginLoan] = []
+    if margin_loans:
+        for loan in margin_loans:
+            loan_records.append(_coerce_margin_loan(loan))
+    margin_interest = (
+        calculate_total_margin_interest(loan_records) if loan_records else Decimal("0.00")
+    )
+
+    tax_on_win = (
+        calculate_tax(gross_win, tax_mode, st_rate, lt_rate) if gross_win > 0 else Decimal("0.00")
+    )
+
+    net_win = gross_win - (total_fees_slip + energy_cost + margin_interest + tax_on_win)
+    net_loss = -(gross_loss + total_fees_slip + energy_cost + margin_interest)
+
+    breakdown = {
+        "fees_open": fees_open_q,
+        "fees_close": fees_close_q,
+        "slippage_open": slippage_open_q,
+        "slippage_close": slippage_close_q,
+        "total_fees_slippage": total_fees_slip,
+        "energy_cost": energy_cost,
+        "margin_interest": margin_interest,
+        "tax_on_win": tax_on_win,
+    }
 
     return PnLResult(
         symbol=symbol,
+        side=side,
         qty=qty,
-        entry_price=Decimal(str(entry)),
-        target_price=Decimal(str(target)),
-        stop_price=Decimal(str(stop)),
+        entry=Decimal(str(entry)),
+        target=Decimal(str(target)),
+        stop=Decimal(str(stop)),
         gross_win=gross_win,
         gross_loss=gross_loss,
-        fees_open=Decimal(str(fees_open)),
-        fees_close=Decimal(str(fees_close)),
-        slip_open=Decimal(str(slip_open)),
-        slip_close=Decimal(str(slip_close)),
-        total_fees_slip=fees_slip,
-        energy_cost=energy_cost,
-        margin_interest=margin_interest,
-        tax_on_win=tax_on_win,
-        net_win=net_win,
-        net_loss=net_loss,
+        net_win_scenario=net_win.quantize(Decimal("0.01")),
+        net_loss_scenario=net_loss.quantize(Decimal("0.01")),
+        breakdown=breakdown,
     )

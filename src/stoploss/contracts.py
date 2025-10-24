@@ -8,7 +8,7 @@ Reference: CME Group specifications:
 """
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
 Symbol = Literal["ES", "NQ", "CL", "GC"]
@@ -24,25 +24,35 @@ class FuturesContract:
     tick_value: Decimal  # $ value of one minimum tick
     description: str
 
+    @property
+    def point_value(self) -> Decimal:
+        """Dollar value per full price point (alias for ppv_per_unit)."""
+
+        return self.ppv_per_unit
+
     def round_to_tick(self, price: Decimal) -> Decimal:
         """Round a price to the nearest valid tick."""
+        price = Decimal(str(price))
         if self.min_tick <= 0:
             raise ValueError(f"min_tick must be positive, got {self.min_tick}")
-        rounded = (price / self.min_tick).quantize(Decimal("1"))
-        return rounded * self.min_tick
+        units = (price / self.min_tick).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        return units * self.min_tick
 
     def tick_diff(self, price_a: Decimal, price_b: Decimal) -> int:
         """Return number of ticks between two prices."""
+        price_a = Decimal(str(price_a))
+        price_b = Decimal(str(price_b))
         if self.min_tick <= 0:
             raise ValueError(f"min_tick must be positive, got {self.min_tick}")
         diff = abs(price_a - price_b)
-        return int(diff / self.min_tick)
+        ticks = diff / self.min_tick
+        return int(ticks.to_integral_value(rounding=ROUND_HALF_UP))
 
     def pnl_for_move(self, qty: int | float, price_move: Decimal) -> Decimal:
         """Calculate P&L for a given quantity and price move."""
         qty_decimal = Decimal(str(qty))
         price_move_decimal = Decimal(str(price_move))
-        return qty_decimal * price_move_decimal * self.ppv_per_unit
+        return qty_decimal * price_move_decimal * self.point_value
 
 
 # Contract specifications from CME

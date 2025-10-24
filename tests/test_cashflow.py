@@ -220,8 +220,8 @@ class TestShortSideCalculations:
         )
 
         # Short loss: stop - entry = 5100 - 5050 = 50
-        # Gross: 2 * 50 * $50 = $2,500
-        assert result.gross_loss == Decimal("2500")
+        # Gross: 2 * 50 * $50 = $5,000
+        assert result.gross_loss == Decimal("5000")
 
 
 class TestResultStructure:

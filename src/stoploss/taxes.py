@@ -12,7 +12,21 @@ References:
 from decimal import Decimal
 from typing import Literal
 
-TaxMode = Literal["short_term_ordinary", "section_1256"]
+TaxMode = Literal["short_term", "short_term_ordinary", "1256", "section_1256"]
+
+
+def _normalize_rate(rate: Decimal) -> Decimal:
+    """Return tax rate as a [0, 1] Decimal, accepting 0-100 percentages."""
+
+    rate = Decimal(str(rate))
+    if rate < 0:
+        raise ValueError(f"tax rate must be non-negative, got {rate}")
+    if rate > 1:
+        if rate <= 100:
+            rate = rate / Decimal("100")
+        else:
+            raise ValueError(f"tax rate must be <= 100, got {rate}")
+    return rate
 
 
 def calculate_tax_short_term(gross_profit: Decimal, tax_rate: Decimal) -> Decimal:
@@ -26,13 +40,10 @@ def calculate_tax_short_term(gross_profit: Decimal, tax_rate: Decimal) -> Decima
         Tax owed (0 if no profit)
     """
     gross_profit = Decimal(str(gross_profit))
-    tax_rate = Decimal(str(tax_rate))
+    tax_rate = _normalize_rate(tax_rate)
 
     if gross_profit <= 0:
         return Decimal("0")
-
-    if tax_rate < 0 or tax_rate > 1:
-        raise ValueError(f"tax_rate must be in [0, 1], got {tax_rate}")
 
     return (gross_profit * tax_rate).quantize(Decimal("0.01"))
 
@@ -59,16 +70,11 @@ def calculate_tax_section_1256(
         Form 6781 treatment: 60% of gains taxed at LT LTCG rate, 40% at ordinary ST rate.
     """
     gross_profit = Decimal(str(gross_profit))
-    st_rate = Decimal(str(st_rate))
-    lt_rate = Decimal(str(lt_rate))
+    st_rate = _normalize_rate(st_rate)
+    lt_rate = _normalize_rate(lt_rate)
 
     if gross_profit <= 0:
         return Decimal("0")
-
-    if st_rate < 0 or st_rate > 1:
-        raise ValueError(f"st_rate must be in [0, 1], got {st_rate}")
-    if lt_rate < 0 or lt_rate > 1:
-        raise ValueError(f"lt_rate must be in [0, 1], got {lt_rate}")
 
     blended_rate = Decimal("0.60") * lt_rate + Decimal("0.40") * st_rate
     return (gross_profit * blended_rate).quantize(Decimal("0.01"))
@@ -91,11 +97,18 @@ def calculate_tax(
     Returns:
         Tax owed in dollars
     """
-    if mode == "short_term_ordinary":
-        return calculate_tax_short_term(gross_profit, st_rate)
-    elif mode == "section_1256":
-        if lt_rate is None:
-            raise ValueError("lt_rate required for section_1256 mode")
-        return calculate_tax_section_1256(gross_profit, st_rate, lt_rate)
+    normalized_mode: str
+    if mode in ("short_term", "short_term_ordinary"):
+        normalized_mode = "short_term_ordinary"
+    elif mode in ("1256", "section_1256"):
+        normalized_mode = "section_1256"
     else:
         raise ValueError(f"Unknown tax mode: {mode}")
+
+    if normalized_mode == "short_term_ordinary":
+        return calculate_tax_short_term(gross_profit, st_rate)
+
+    if lt_rate is None:
+        raise ValueError("lt_rate required for section_1256 mode")
+
+    return calculate_tax_section_1256(gross_profit, st_rate, lt_rate)

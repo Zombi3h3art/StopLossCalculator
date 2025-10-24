@@ -11,7 +11,7 @@ Both round stops to valid ticks and recompute loss to keep R honest.
 """
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Literal
 
 from .contracts import Symbol, get_contract
@@ -21,15 +21,22 @@ Side = Literal["long", "short"]
 
 @dataclass
 class PositionSize:
-    """Position sizing result."""
+    """Position sizing result for percent/ATR workflows."""
 
-    qty: int  # Number of contracts/units
-    entry_price: Decimal  # Entry price in contract units
-    stop_price: Decimal  # Stop loss price (rounded to tick)
-    loss_per_unit: Decimal  # Price loss per unit (contract)
-    loss_dollars: Decimal  # Dollar loss at stop (qty * ppv * loss_per_unit)
-    gross_exposure: Decimal  # Account equity * leverage
-    method: str  # "percent_stop" or "atr_stop"
+    symbol: Symbol
+    side: Side
+    qty: int
+    entry: Decimal
+    stop_price: Decimal
+    risk_per_unit: Decimal  # theoretical stop distance before tick rounding
+    risk_per_unit_actual: Decimal  # stop distance after tick rounding
+    risk_dollars_per_contract: Decimal
+    gross_exposure: Decimal
+    risk_cash: Decimal
+    fees_open: Decimal
+    fees_close: Decimal
+    slippage_open: Decimal
+    method: str
 
 
 def size_by_percent_stop(
@@ -40,6 +47,7 @@ def size_by_percent_stop(
     leverage: Decimal,
     pct_stop: Decimal,
     fees_open: Decimal = Decimal("0"),
+    fees_close: Decimal = Decimal("0"),
     slip_open: Decimal = Decimal("0"),
 ) -> PositionSize:
     """Size position using percent-stop method (risk-first).
@@ -65,11 +73,15 @@ def size_by_percent_stop(
         round stop to nearest tick, recompute loss_per_unit
     """
     contract = get_contract(symbol)
+    if side not in ("long", "short"):
+        raise ValueError(f"side must be 'long' or 'short', got {side}")
+
     entry = Decimal(str(entry))
     account_equity = Decimal(str(account_equity))
     leverage = Decimal(str(leverage))
     pct_stop = Decimal(str(pct_stop))
     fees_open = Decimal(str(fees_open))
+    fees_close = Decimal(str(fees_close))
     slip_open = Decimal(str(slip_open))
 
     if entry <= 0:
@@ -81,40 +93,55 @@ def size_by_percent_stop(
     if pct_stop <= 0 or pct_stop >= 1:
         raise ValueError(f"pct_stop must be in (0, 1), got {pct_stop}")
 
-    gross_exposure = account_equity * leverage
-    loss_per_unit = entry * pct_stop
+    gross_exposure = (account_equity * leverage).quantize(Decimal("0.01"))
+    risk_per_unit = (entry * pct_stop).quantize(Decimal("0.0001"))
 
-    # Qty based on gross exposure
-    qty_float = float(gross_exposure / (entry * contract.ppv_per_unit))
-    qty = int(qty_float)
+    # Calculate stop price (before rounding)
+    raw_stop = entry - risk_per_unit if side == "long" else entry + risk_per_unit
+    stop_price = contract.round_to_tick(raw_stop)
+
+    risk_per_unit_actual = (
+        (entry - stop_price) if side == "long" else (stop_price - entry)
+    ).quantize(Decimal("0.0001"))
+
+    if risk_per_unit_actual <= 0:
+        raise ValueError("Rounded stop produced non-positive risk distance")
+
+    risk_dollars_per_contract = (risk_per_unit_actual * contract.point_value).quantize(
+        Decimal("0.01")
+    )
+
+    available_risk_cash = (gross_exposure - fees_open - fees_close - slip_open).quantize(
+        Decimal("0.01")
+    )
+    if available_risk_cash <= 0:
+        raise ValueError("Risk cash unavailable after fees/slippage")
+
+    qty_decimal = (available_risk_cash / risk_dollars_per_contract).to_integral_value(
+        rounding=ROUND_DOWN
+    )
+    qty = int(qty_decimal)
 
     if qty <= 0:
         raise ValueError(
-            f"Insufficient capital for entry. Got qty={qty} (gross_exp={gross_exposure}, "
-            f"entry={entry}, ppv={contract.ppv_per_unit})"
+            "Insufficient capital for entry. "
+            f"risk_cash={available_risk_cash}, risk_per_contract={risk_dollars_per_contract}"
         )
 
-    # Calculate stop price (not yet rounded)
-    stop_price = entry - loss_per_unit if side == "long" else entry + loss_per_unit
-
-    # Round stop to nearest tick
-    stop_price_rounded = contract.round_to_tick(stop_price)
-
-    # Recompute loss_per_unit with rounded stop
-    loss_per_unit_actual = (
-        entry - stop_price_rounded if side == "long" else stop_price_rounded - entry
-    )
-
-    # Verify risk alignment
-    gross_loss_dollars = Decimal(qty) * contract.ppv_per_unit * loss_per_unit_actual
-
     return PositionSize(
+        symbol=symbol,
+        side=side,
         qty=qty,
-        entry_price=entry,
-        stop_price=stop_price_rounded,
-        loss_per_unit=loss_per_unit_actual,
-        loss_dollars=gross_loss_dollars,
+        entry=entry,
+        stop_price=stop_price,
+        risk_per_unit=risk_per_unit,
+        risk_per_unit_actual=risk_per_unit_actual,
+        risk_dollars_per_contract=risk_dollars_per_contract,
         gross_exposure=gross_exposure,
+        risk_cash=available_risk_cash,
+        fees_open=fees_open,
+        fees_close=fees_close,
+        slippage_open=slip_open,
         method="percent_stop",
     )
 
@@ -151,6 +178,9 @@ def size_by_atr_stop(
         qty = (risk_cash - fees_open - slip_open) / (ppv_per_unit * loss_per_unit)
     """
     contract = get_contract(symbol)
+    if side not in ("long", "short"):
+        raise ValueError(f"side must be 'long' or 'short', got {side}")
+
     entry = Decimal(str(entry))
     atr = Decimal(str(atr))
     k_atr = Decimal(str(k_atr))
@@ -184,12 +214,16 @@ def size_by_atr_stop(
         loss_per_unit = atr_loss
 
     # Calculate qty
-    available_risk = risk_cash - fees_open - slip_open
+    available_risk = (risk_cash - fees_open - slip_open).quantize(Decimal("0.01"))
     if available_risk <= 0:
         raise ValueError(f"risk_cash insufficient to cover fees/slip. available={available_risk}")
 
-    qty_float = float(available_risk / (contract.ppv_per_unit * loss_per_unit))
-    qty = int(qty_float)
+    risk_dollars_per_contract = (loss_per_unit * contract.point_value).quantize(Decimal("0.01"))
+
+    qty_decimal = (available_risk / risk_dollars_per_contract).to_integral_value(
+        rounding=ROUND_DOWN
+    )
+    qty = int(qty_decimal)
 
     if qty <= 0:
         raise ValueError(
@@ -208,14 +242,20 @@ def size_by_atr_stop(
         entry - stop_price_rounded if side == "long" else stop_price_rounded - entry
     )
 
-    gross_loss_dollars = Decimal(qty) * contract.ppv_per_unit * loss_per_unit_actual
+    gross_exposure = (entry * contract.point_value * Decimal(qty)).quantize(Decimal("0.01"))
 
     return PositionSize(
+        symbol=symbol,
+        side=side,
         qty=qty,
-        entry_price=entry,
+        entry=entry,
         stop_price=stop_price_rounded,
-        loss_per_unit=loss_per_unit_actual,
-        loss_dollars=gross_loss_dollars,
-        gross_exposure=entry * contract.ppv_per_unit * Decimal(qty),
+        risk_per_unit=loss_per_unit.quantize(Decimal("0.0001")),
+        risk_per_unit_actual=loss_per_unit_actual.quantize(Decimal("0.0001")),
+        risk_dollars_per_contract=risk_dollars_per_contract,
+        gross_exposure=gross_exposure,
+        risk_cash=available_risk,
+        fees_open=fees_open,
+        slippage_open=slip_open,
         method="atr_stop",
     )

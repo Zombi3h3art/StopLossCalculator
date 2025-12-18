@@ -1,8 +1,12 @@
 """Simplified Stop Loss Calculator Dashboard - Two-column layout for instant results."""
 
+from decimal import Decimal
+
 import streamlit as st
 
+from src.stoploss.contracts import get_contract
 from src.stoploss.simple_sizing import calculate_stop_loss
+from src.stoploss.sizing import size_by_percent_stop
 
 st.set_page_config(
     page_title="Stop Loss Calculator",
@@ -65,6 +69,14 @@ st.markdown(
 
 st.title("🎯 Stop Loss Calculator")
 
+# Mode Selection
+mode = st.radio(
+    "Calculator Mode",
+    ["Simple / Generic", "Futures (Precision)"],
+    horizontal=True,
+    help="Choose 'Futures' for ES/NQ/CL/GC with tick rounding.",
+)
+
 # Two-column layout
 left_col, right_col = st.columns([1, 1], gap="large")
 
@@ -72,33 +84,52 @@ left_col, right_col = st.columns([1, 1], gap="large")
 with left_col:
     st.markdown("### 📝 Trade Details")
 
+    if mode == "Futures (Precision)":
+        st.markdown('<div class="input-highlight">', unsafe_allow_html=True)
+        symbol = st.selectbox("Contract", ["ES", "NQ", "CL", "GC"])
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        contract = get_contract(symbol)
+        st.caption(f"Tick: {contract.min_tick} | Point Value: ${contract.point_value}")
+
     st.markdown('<div class="input-highlight">', unsafe_allow_html=True)
     ticker_price = st.number_input(
-        "Ticker Price",
+        "Entry Price",
         min_value=0.0001,
-        step=0.01,
+        step=0.25 if mode == "Futures (Precision)" and symbol in ["ES", "NQ"] else 0.01,
+        format="%.4f",
         help="Current price of the asset",
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # Direction with color
-    direction = st.segmented_control(
-        "Direction",
-        options=["long", "short"],
-        selection_mode="single",
-        format_func=lambda x: ("🟢 Buy / Long" if x == "long" else "🔴 Sell / Short"),
-    )
+    try:
+        direction = st.segmented_control(
+            "Direction",
+            options=["long", "short"],
+            selection_mode="single",
+            format_func=lambda x: ("🟢 Buy / Long" if x == "long" else "🔴 Sell / Short"),
+        )
+    except AttributeError:
+        # Fallback for older Streamlit versions
+        direction = st.radio(
+            "Direction",
+            options=["long", "short"],
+            format_func=lambda x: ("🟢 Buy / Long" if x == "long" else "🔴 Sell / Short"),
+            horizontal=True,
+        )
+
     side = direction if direction else "long"
 
     st.markdown('<div class="input-highlight">', unsafe_allow_html=True)
     trade_amount = st.number_input(
-        "Trade Amount ($)",
+        "Account Equity / Trade Amount ($)",
         min_value=1.0,
         step=100.0,
-        value=100.0,
-        help="Cash you're putting into this trade",
+        value=10000.0 if mode == "Futures (Precision)" else 100.0,
+        help="Total cash available for this trade setup",
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="input-highlight">', unsafe_allow_html=True)
     leverage = st.number_input(
@@ -109,24 +140,25 @@ with left_col:
         value=10,
         help="How much you're amplifying (10x, 100x, etc)",
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="input-highlight">', unsafe_allow_html=True)
     risk_pct = st.number_input(
-        "Acceptable Loss (%)",
+        "Acceptable Loss (% of Equity)",
         min_value=0.01,
         max_value=100.0,
-        value=9.0,
-        step=0.5,
+        value=1.0 if mode == "Futures (Precision)" else 9.0,
+        step=0.1,
         help="Max % of trade amount to risk",
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # Display leverage visually with color
+    risk_dollars = trade_amount * risk_pct / 100
     st.markdown(
         f"""
         <div style="background-color: #e8f5e9; padding: 1rem; border-radius: 0.5rem; border-left: 3px solid #4caf50;">
-        <strong>📊 Leverage: {leverage}X</strong> | Risk: <strong style="color: #d32f2f;">${trade_amount * risk_pct / 100:.2f}</strong>
+        <strong>📊 Leverage: {leverage}X</strong> | Risk: <strong style="color: #d32f2f;">${risk_dollars:.2f}</strong>
         </div>
         """,
         unsafe_allow_html=True,
@@ -136,13 +168,55 @@ with left_col:
 with right_col:
     # Calculate
     if ticker_price > 0 and trade_amount > 0 and leverage > 0 and risk_pct > 0:
-        result = calculate_stop_loss(
-            entry_price=ticker_price,
-            side=side,
-            account_equity=trade_amount,
-            leverage=leverage,
-            acceptable_risk_pct=risk_pct,
-        )
+        if mode == "Simple / Generic":
+            result = calculate_stop_loss(
+                entry_price=ticker_price,
+                side=side,
+                account_equity=trade_amount,
+                leverage=leverage,
+                acceptable_risk_pct=risk_pct,
+            )
+
+            stop_price = result.stop_price
+            allowed_move_pct = result.allowed_adverse_move_pct
+            max_loss = result.max_loss_dollars
+            notional = result.notional_exposure
+            qty = result.quantity
+
+            formula_desc = f"Stop = Entry × (1 {'+ ' if side == 'short' else '- '}{allowed_move_pct / 100:.6f})"
+
+        else:  # Futures Mode
+            # Convert Risk % of Equity to Stop Distance %
+            # Stop Distance % = (Risk % of Equity) / Leverage
+            # e.g. 1% risk / 10x lev = 0.1% stop distance
+            pct_stop_decimal = (Decimal(str(risk_pct)) / Decimal("100")) / Decimal(str(leverage))
+
+            try:
+                fs_result = size_by_percent_stop(
+                    symbol=symbol,
+                    side=side,
+                    entry=Decimal(str(ticker_price)),
+                    account_equity=Decimal(str(trade_amount)),
+                    leverage=Decimal(str(leverage)),
+                    pct_stop=pct_stop_decimal,
+                )
+
+                stop_price = fs_result.stop_price
+                # Re-calculate actual allowed move based on rounded stop
+                dist = abs(fs_result.entry - fs_result.stop_price)
+                allowed_move_pct = (dist / fs_result.entry) * 100
+
+                max_loss = fs_result.risk_cash  # This includes fees if any, but here 0
+                notional = fs_result.gross_exposure
+                qty = fs_result.qty
+
+                formula_desc = (
+                    "Stop rounded to nearest tick. Qty = floor(Exposure / (Entry × PointValue))"
+                )
+
+            except ValueError as e:
+                st.error(f"Calculation Error: {e}")
+                st.stop()
 
         # TRADE SUMMARY CARD - Beautiful gradient card
         st.markdown(
@@ -151,11 +225,11 @@ with right_col:
                 <div style="font-size: 1.4rem; font-weight: bold; margin-bottom: 1rem;">TRADE SUMMARY</div>
                 <div class="summary-row">
                     <span class="summary-label">Entry Price:</span>
-                    <span class="summary-value">${result.entry_price:.4f}</span>
+                    <span class="summary-value">${ticker_price:.4f}</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">Direction:</span>
-                    <span class="summary-value">{'🟢 BUY / LONG' if side == 'long' else '🔴 SELL / SHORT'}</span>
+                    <span class="summary-value">{"🟢 BUY / LONG" if side == "long" else "🔴 SELL / SHORT"}</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">Leverage:</span>
@@ -163,15 +237,15 @@ with right_col:
                 </div>
                 <div class="summary-row" style="border-top: 1px solid rgba(255,255,255,0.3); padding-top: 0.8rem; margin-top: 0.8rem;">
                     <span class="summary-label">Stop Loss Price:</span>
-                    <span class="summary-value">${result.stop_price:.4f}</span>
+                    <span class="summary-value">${stop_price:.4f}</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">Allowed Move:</span>
-                    <span class="summary-value">{'↑' if side == 'short' else '↓'} {result.allowed_adverse_move_pct:.4f}%</span>
+                    <span class="summary-value">{"↑" if side == "short" else "↓"} {allowed_move_pct:.4f}%</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">Max Loss:</span>
-                    <span class="summary-value" style="color: #ff6b6b;">${result.max_loss_dollars:.2f}</span>
+                    <span class="summary-value" style="color: #ff6b6b;">${max_loss:.2f}</span>
                 </div>
             </div>
             """,
@@ -181,7 +255,7 @@ with right_col:
         # COPYABLE STOP PRICE - Highlight for easy copying
         st.markdown("### 📋 Copy Your Stop Price")
         st.markdown(
-            f'<div class="stop-price-highlight">${result.stop_price:.4f}</div>',
+            f'<div class="stop-price-highlight">${stop_price:.4f}</div>',
             unsafe_allow_html=True,
         )
 
@@ -189,28 +263,30 @@ with right_col:
         st.markdown("### 📊 Position Details")
         col3, col4 = st.columns(2)
         with col3:
-            st.metric("Notional Exposure", f"${result.notional_exposure:,.0f}")
-            st.metric("Max Risk ($)", f"${result.max_loss_dollars:.2f}")
+            st.metric("Notional Exposure", f"${notional:,.0f}")
+            st.metric("Max Risk ($)", f"${max_loss:.2f}")
         with col4:
-            st.metric("Units Controlled", f"{result.quantity:.2f}")
-            ratio = result.acceptable_risk_pct / result.leverage
+            st.metric("Units Controlled", f"{qty:.2f}")
+            # Risk/Leverage Ratio
+            ratio = risk_pct / leverage
             st.metric("Risk/Leverage Ratio", f"{ratio:.4f}%")
 
         # Warning for extreme leverage
         if leverage > 100:
             st.warning(
-                f"⚠️ **High Leverage**: At {leverage}x, stop is {result.allowed_adverse_move_pct:.4f}% away. "
+                f"⚠️ **High Leverage**: At {leverage}x, stop is {allowed_move_pct:.4f}% away. "
                 f"Consider lower leverage for reliability.",
                 icon="⚠️",
             )
 
         # Show the math
         st.markdown("### 📐 The Formula")
-        formula_text = (
-            f"**{side.upper()}**: Stop = Entry × (1 {'+ ' if side == 'short' else '- '}{result.allowed_adverse_move_pct / 100:.6f})\n\n"
-            f"Stop = ${result.entry_price} × {1 + (result.allowed_adverse_move_pct/100) if side == 'short' else 1 - (result.allowed_adverse_move_pct/100):.6f} = **${result.stop_price:.4f}**"
-        )
-        st.markdown(formula_text)
+        st.markdown(formula_desc)
+
+        if mode == "Futures (Precision)":
+            st.info(
+                f"ℹ️ **Tick Rounding Applied**: Stop price is rounded to the nearest {contract.min_tick} tick for {symbol}."
+            )
 
     else:
         st.markdown(

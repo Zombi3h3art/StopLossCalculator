@@ -79,7 +79,7 @@ def calculate_stop_loss(
     # This is the formula from your analysis
     allowed_adverse_pct = risk_pct / lev
 
-    # Convert % to decimal (11% -> 0.11 -> divide by 100 -> 0.0011 factor)
+    # Convert % to decimal (e.g. 11% -> 11.0 -> divide by 100 -> 0.11 factor)
     move_factor = allowed_adverse_pct / Decimal("100")
 
     # Calculate stop based on side

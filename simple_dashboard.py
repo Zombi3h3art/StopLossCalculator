@@ -93,10 +93,16 @@ with left_col:
         st.caption(f"Tick: {contract.min_tick} | Point Value: ${contract.point_value}")
 
     st.markdown('<div class="input-highlight">', unsafe_allow_html=True)
+
+    # Calculate step value safely
+    step_value = 0.01
+    if mode == "Futures (Precision)" and symbol in ["ES", "NQ"]:
+        step_value = 0.25
+
     ticker_price = st.number_input(
         "Entry Price",
         min_value=0.0001,
-        step=0.25 if mode == "Futures (Precision)" and symbol in ["ES", "NQ"] else 0.01,
+        step=step_value,
         format="%.4f",
         help="Current price of the asset",
     )

@@ -197,7 +197,9 @@ For issues, questions, or suggestions, please visit the [GitHub repository](http
 
 ---
 
-**Built for traders who count every penny.** 🎯**Calculations:**
+**Built for traders who count every penny.**
+
+🎯 **Calculations:**
 
 1. **Position Size**
 
@@ -234,8 +236,8 @@ For issues, questions, or suggestions, please visit the [GitHub repository](http
 
 ## Tax References
 
--   **IRS Pub 550** (Investment Income & Expenses): https://www.irs.gov/publications/p550
--   **IRS Form 6781** (§1256 Contracts): https://www.irs.gov/forms/about-form-6781
+-   [IRS Pub 550](https://www.irs.gov/publications/p550) (Investment Income & Expenses)
+-   [IRS Form 6781](https://www.irs.gov/forms/about-form-6781) (§1256 Contracts)
 -   **60/40 Split**: 60% of gains taxed at LTCG rate, 40% at ordinary ST rate
 
 ## Energy Estimation

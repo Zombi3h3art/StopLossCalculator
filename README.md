@@ -1,10 +1,10 @@
 # Stop Loss Calculator
 
-Precision stop-loss calculator for traders. Real-time P&L calculations accounting for position sizing, taxes, margin interest, and energy costs.
+Precision stop-loss calculator for traders. P&L calculations accounting for position sizing, taxes, margin interest, and energy costs.
 
 ## 🎯 Features
 
--   **Instant Calculations**: Real-time stop loss and P&L updates as you adjust parameters
+-   **Instant Calculations**: Stop loss and P&L updates as you adjust parameters
 -   **Contracts Supported**: ES, NQ, CL, GC with accurate point values and tick rounding
 -   **Tax Accounting**: Federal short-term ordinary + §1256 60/40 split (Form 6781)
 -   **Margin Support**: Up to 3 cascading margin loans with daily accrual interest (360-day basis)
@@ -174,7 +174,7 @@ pytest --cov=src/stoploss tests/
 -   **Educational Use Only**: This calculator is for planning and educational purposes only
 -   **No Trading Advice**: Not investment or trading advice
 -   **Verification Required**: Always verify calculations before trading
--   **Federal Tax Only**: Calculations include federal taxes only; consult a tax professional for your situation
+-   **Federal Tax Only**: Calculations include federal tax implied assumption only; consult a human tax professional for your situation
 -   **Market Conditions**: Does not account for market gaps or slippage beyond user-specified values
 
 ## 📄 License
@@ -253,7 +253,6 @@ Reference: https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_
 -   **Basis**: 360-day year (broker standard)
 -   **Formula**: interest = principal × APR × (days / 360)
 -   **Accrual**: Daily, billed monthly
--   **Reference**: Schwab, IBKR, etc.
 
 ## SOFR Reference
 
@@ -353,11 +352,6 @@ Broker markup: +150 bps = 6.83% APR (typical retail)
 Interactive Brokers: SOFR + 25 bps = 5.58% (tightest)
 Schwab: SOFR + 100 bps = 6.33%
 ```
-
-**To get live SOFR:**
-
--   [Federal Reserve SOFR rates](https://www.newyorkfed.org/markets/reference-rates/sofr)
--   Your broker's margin rates API (if available)
 
 ---
 

@@ -1,6 +1,6 @@
 # Stop Loss Calculator
 
-Precision stop-loss calculator for traders. P&L calculations accounting for position sizing, taxes, margin interest, and energy costs.
+Precision stop-loss calculator for traders. P&L calculations accounting for position sizing, margin interest, and energy costs.
 
 ## 🎯 Features
 

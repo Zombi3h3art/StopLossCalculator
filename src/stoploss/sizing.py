@@ -256,6 +256,7 @@ def size_by_atr_stop(
         gross_exposure=gross_exposure,
         risk_cash=available_risk,
         fees_open=fees_open,
+        fees_close=Decimal("0"),
         slippage_open=slip_open,
         method="atr_stop",
     )

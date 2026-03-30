@@ -61,7 +61,7 @@ may use a very soft shadow, and even then the result should feel grounded and op
 
 - **Sidebar Command Rail**: The sidebar is a persistent operational rail, not a decorative panel. It should feel dense, clear, and decisive, with strong active-state contrast and short labels that support rapid switching between dashboard views.
 - **Navigation and Tabs**: Keep navigation utilitarian and scannable. Use tabs only for genuinely related content clusters and avoid relying on many heavy tabs at once. The user should always understand where they are in the workbench.
-- **Metric Cards**: Use compact bordered cards with strong numeric hierarchy, small disciplined labels, and minimal ornament. Important values may use Burnished Brass as a small accent, not as a full-surface fill.
+- **Metric Cards**: Use compact bordered cards with strong numeric hierarchy, small disciplined labels, and minimal ornament. Important values may use Ocean Blue as a small accent, not as a full-surface fill.
 - **Analysis Cards**: Core analysis surfaces should read like bordered research panels. Use thin outlines, quiet surface steps, and structured spacing so price action, factors, and commentary can coexist without visual noise.
 - **Buttons**: Use restrained rounding with clear contrast. Primary buttons use Deep Ledger Navy fills; secondary buttons use light surfaces with Steel Slate borders; destructive actions use Oxide Red only when necessary.
 - **Inputs and Filter Trays**: Inputs should feel orderly and dense. Favor bordered trays, segmented controls, and grouped filters over soft pills or consumer-style chips. Search, ticker selection, overlays, and settings controls should feel precise.
@@ -69,7 +69,7 @@ may use a very soft shadow, and even then the result should feel grounded and op
 - **Charts**: Charts should have neutral framing and minimal chrome. Use Primary for the leading series, Secondary for support structure, Positive for aligned or constructive overlays, and Tertiary only for selective emphasis. Charts should remain legible beside overlay toggles, tooltips, and technical indicators.
 - **Settings Surfaces**: Settings pages should use organized sections, clear dividers, compact controls, and sober explanatory text. They should support appearance, chart, and environment configuration without losing operational clarity.
 - **Stewardship and Policy Callouts**: Policy, alignment, and stewardship surfaces should be compact, authoritative, and integrated into the analytical workflow. They should feel serious and clear, never ornamental or preachy.
-- **Bespoke Polish**: Premium polish should come from Streamlit theming plus selective `st.html` and custom components for high-value surfaces. Core controls, data display, and dashboard information flow should remain recognizably Streamlit-native.
+- **Bespoke Polish**: Premium polish should come from Streamlit theming plus selective `st.html` and custom components for high-value surfaces. Core controls, data display, and dashboard information flow should remain recognizably Streamlit-native. Use Ocean Blue sparingly for highlighted scores and important decisions.
 
 ## Do's and Don'ts
 
@@ -78,7 +78,7 @@ may use a very soft shadow, and even then the result should feel grounded and op
 - Do use typography, borders, and spacing to create authority before reaching for extra color
 - Do keep layouts compatible with Streamlit workbench realities, including shallow column nesting and disciplined use of tabs
 - Do let dense metrics, filters, charts, and tables remain the center of the experience
-- Do use Burnished Brass rarely so highlighted scores and decisions still feel important
+- Do use Ocean Blue sparingly so highlighted scores and decisions still feel important
 - Don't make the product feel soft, lifestyle-branded, or devotional
 - Don't over-round cards, controls, or inputs
 - Don't hide working dashboard information behind decorative hero sections or overly spacious marketing layouts

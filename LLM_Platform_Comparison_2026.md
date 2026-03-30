@@ -1,12 +1,12 @@
 # Complete LLM Platform Comparison for Financial Stop-Loss Calculator (2026)
 
-**Scripture Foundation:** Proverbs 24:6 (KJV): "For by wise counsel thou shalt make thy war: and in multitude of counsellors there is safety."
+**Purpose:** This document provides a comprehensive comparison of leading LLM platforms for financial stop-loss calculations, evaluating cost, mathematical precision, and suitability for different use cases.
 
 ---
 
 ## Platform Overview: The Complete Landscape
 
-The current LLM landscape for financial calculation spans eight major platforms, each with distinct strengths. **Claude Sonnet 4** from Anthropic leads in audit-friendly verification with explicit reasoning traces and native XML tag support, making it ideal for compliance documentation where every assumption must be defensible. **GPT-5** from OpenAI (expected early 2026) promises best-in-class structured output with strict JSON schema enforcement, making it the natural choice for API integration and pytest test generation, though pricing remains unconfirmed and could reach $5-10 per million tokens.
+The current LLM landscape for financial calculation spans eight major platforms, each with distinct strengths. **Claude Sonnet 4** from Anthropic leads in audit-friendly verification with explicit reasoning traces and native XML tag support, making it ideal for compliance documentation where every assumption must be defensible. **GPT-5** from OpenAI (released August 7, 2025, available in ChatGPT and OpenAI API) provides best-in-class structured output with strict JSON schema enforcement, making it the natural choice for API integration and pytest test generation, though pricing remains unconfirmed and could reach $5-10 per million tokens.
 
 **DeepSeek V3** and **DeepSeek-R1** represent the best cost-performance ratio, with V3 priced at just $0.28 input and $0.42 output per million tokens (with 90% cache discount for repeated prompts), while R1 adds genuine first-principles reasoning that catches formula errors other models miss. DeepSeek's models excel at mathematical derivation but lack explicit "thinking mode" toggles—instead, you must manually prompt for step-by-step reasoning. **Gemini 3 Pro** from Google emphasizes structural clarity with 2M token context and step-by-step verification, though it trails in pure mathematical accuracy compared to DeepSeek or Grok.
 
@@ -28,11 +28,11 @@ The financial calculus shifts when context length becomes critical: **Llama 4 Ma
 
 ## Mathematical Precision: Which Model Gets the Numbers Right?
 
-**AIME 2025 (American Invitational Mathematics Examination)** serves as the gold standard for quantitative reasoning. **Grok 3** leads at 93%, followed by **DeepSeek-R1** and **Kimi K2.5** both at 96.1%, with **Gemini 3 Pro** at 95% and **GPT-5** (projected) around 92-95%. **Claude Sonnet 4** scores lower on pure math but compensates with superior error detection through its internal consistency verification—it's more likely to catch when a formula doesn't match stated assumptions, even if it occasionally fails complex derivations.
+**AIME 2025 (American Invitational Mathematics Examination, pass@1)** serves as the gold standard for quantitative reasoning. **DeepSeek-R1-0528** leads at 87.5%, followed by **Kimi K2.5** at 96.1%, **DeepSeek-R1** (standard) at 70.0%, and **Grok 3** at 93%. **Claude Sonnet 4** scores lower on pure math but compensates with superior error detection through its internal consistency verification—it's more likely to catch when a formula doesn't match stated assumptions, even if it occasionally fails complex derivations.
 
-**GPQA (Graduate-Level Science Questions)** reveals model depth: **Kimi K2.5** scores 87.6%, **Grok 3** reaches 75%, and **DeepSeek models** cluster around 80-85%. These benchmarks matter for stop-loss calculators because margin interest calculations involve compounding, tax treatment requires understanding IRS §1256 (60/40 LTCG/ordinary treatment), and position sizing demands tight mathematical reasoning about leveraged exposure. A model that can handle PhD-level physics probably won't stumble on 360-day interest accrual or tick rounding to 0.25 increments.
+**GPQA (Graduate-Level Science Questions, Diamond subset)** reveals model depth: **Grok 3** reaches 84.6%, **DeepSeek models** cluster around 80-85%, and **Kimi K2.5** at 87.6%. These benchmarks matter for stop-loss calculators because margin interest calculations involve compounding, tax treatment requires understanding IRS §1256 (60/40 LTCG/ordinary treatment), and position sizing demands tight mathematical reasoning about leveraged exposure. A model that can handle PhD-level physics probably won't stumble on 360-day interest accrual or tick rounding to 0.25 increments.
 
-**LiveCodeBench** coding scores separate contenders for pytest generation: **Grok 3** achieves 79.4% with reasoning mode, **Llama 4 Maverick** matches GPT-4o parity (exact scores unavailable but described as "comparable"), **GPT-5** projects to lead this category based on historical OpenAI strength in code generation, while **Kimi K2.5** shows strong coding capability (SWE-Bench Verified: 76.8%) particularly for visual-to-code workflows. **DeepSeek V3** scores competitively on coding but lacks the explicit test-generation optimization that GPT-5 brings through better understanding of pytest plugin ecosystems.
+**LiveCodeBench v6** coding scores separate contenders for pytest generation: **Kimi K2.5** achieves 85.0%, **Grok 3** scores 65.5% with reasoning mode, **Llama 4 Maverick** matches GPT-4o parity (exact scores unavailable but described as "comparable"), while **DeepSeek V3** scores competitively on coding but lacks the explicit test-generation optimization that specialized code models bring through better understanding of pytest plugin ecosystems.
 
 ---
 
@@ -104,7 +104,7 @@ Your existing financial XML template spans 627 lines covering four platforms (Cl
 
 **Best for verification/audit:** Claude Sonnet 4 (explicit assumption-listing, XML structure) → Kimi K2.5 (thinking mode traces) → DeepSeek-R1 (independent reasoning)
 
-**Best for pytest generation:** GPT-5 (projected plugin ecosystem knowledge) → Llama 4 Maverick (GPT-4o parity, lower cost) → Grok 3 (79.4% LiveCodeBench)
+**Best for pytest generation:** GPT-5 (projected plugin ecosystem knowledge) → Llama 4 Maverick (GPT-4o parity, lower cost) → Grok 3 (65.5% LiveCodeBench v6)
 
 **Best for cost optimization:** DeepSeek V3 ($6/month for 9K calculations) → Grok 4.1 Fast ($16-20/month) → Llama 4 Maverick ($19/month)
 
@@ -134,4 +134,4 @@ This multi-platform approach balances cost ($22-26/month for Tier 1) with capabi
 
 ---
 
-**Scripture Closing:** Ecclesiastes 10:10 (KJV): "If the iron be blunt, and he do not whet the edge, then must he put to more strength: but wisdom is profitable to direct." Choose the right tool for each task rather than forcing one platform to handle everything.
+Choose the right tool for each task rather than forcing one platform to handle everything. The platform rankings above reflect current capabilities and pricing as of early 2026; revisit this comparison quarterly as models evolve rapidly.

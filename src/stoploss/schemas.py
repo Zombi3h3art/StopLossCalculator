@@ -64,27 +64,7 @@ class SizingInput(BaseModel):
         default=None,
         gt=0,
         decimal_places=2,
-        description=(
-            "Risk budget in dollars — the maximum acceptable loss. "
-            "Required for percent-stop sizing; also used by the ATR method."
-        ),
-    )
-    atr: Decimal | None = Field(
-        default=None,
-        gt=0,
-        decimal_places=4,
-        description="Average True Range (for ATR method)",
-    )
-    k_atr: Decimal = Field(
-        default=Decimal("2"),
-        gt=0,
-        decimal_places=2,
-        description="ATR multiplier (default 2.0)",
-    )
-    swing_low: Decimal | None = Field(
-        default=None,
-        decimal_places=4,
-        description="Swing low/high for structure-based stop (optional)",
+        description="Risk budget in dollars — the maximum acceptable loss (required)",
     )
     fees_open: Decimal = Field(
         default=Decimal("0"),

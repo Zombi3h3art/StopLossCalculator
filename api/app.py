@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from stoploss import __version__
 from stoploss.cashflow import calculate_pnl
 from stoploss.energy import fetch_electricity_price_cents
-from stoploss.rates import fetch_sofr_reference
+from stoploss.rates import MarginLoan, fetch_sofr_reference
 from stoploss.schemas import (
     ApiResponse,
     PnLInput,
@@ -30,10 +30,11 @@ app = FastAPI(
 )
 
 # Enable CORS for web UI
+# ponytail: credentials dropped — wildcard origins + credentials is an invalid
+# CORS combo browsers reject; scope allow_origins when a real frontend exists
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -205,7 +206,10 @@ async def calculate_pnl_api(input_data: PnLInput) -> ApiResponse:
             slippage_close=Decimal(str(input_data.slippage_close or 0)),
             energy_kwh=Decimal(str(input_data.energy_kwh or 0)),
             energy_cost_per_kwh=Decimal(str(input_data.energy_cost_per_kwh or "0.14")),
-            margin_loans=input_data.margin_loans or [],
+            margin_loans=[
+                MarginLoan(loan_amount=loan.amount, apr=loan.apr, days_held=loan.days_held)
+                for loan in input_data.margin_loans
+            ],
             tax_mode=input_data.tax_mode,
             st_rate=Decimal(str(input_data.st_rate or "0.24")),
             lt_rate=Decimal(str(input_data.lt_rate)) if input_data.lt_rate is not None else None,

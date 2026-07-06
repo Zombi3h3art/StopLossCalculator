@@ -302,24 +302,14 @@ with left_col:
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Direction - clean labels
-    try:
-        direction = st.segmented_control(
-            "Direction",
-            options=["long", "short"],
-            selection_mode="single",
-            format_func=lambda x: "Long" if x == "long" else "Short",
-            key="direction",
-        )
-    except AttributeError:
-        # Fallback for older Streamlit versions
-        direction = st.radio(
-            "Direction",
-            options=["long", "short"],
-            format_func=lambda x: "Long" if x == "long" else "Short",
-            horizontal=True,
-            key="direction",
-        )
+    # Direction - clean labels (segmented_control needs streamlit>=1.40, see pyproject)
+    direction = st.segmented_control(
+        "Direction",
+        options=["long", "short"],
+        selection_mode="single",
+        format_func=lambda x: "Long" if x == "long" else "Short",
+        key="direction",
+    )
 
     side = direction if direction else "long"
 

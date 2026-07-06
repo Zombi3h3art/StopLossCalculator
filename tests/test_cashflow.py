@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from stoploss.cashflow import calculate_pnl
-from stoploss.schemas import MarginLoanInput
+from stoploss.rates import MarginLoan
 
 
 class TestGrossPnL:
@@ -167,7 +167,7 @@ class TestCostAccounting:
 
     def test_margin_interest_included(self):
         """Margin interest should reduce net P&L."""
-        loan = MarginLoanInput(amount=Decimal("5000"), apr=Decimal("0.065"), days_held=5)
+        loan = MarginLoan(loan_amount=Decimal("5000"), apr=Decimal("0.065"), days_held=5)
 
         result = calculate_pnl(
             symbol="ES",

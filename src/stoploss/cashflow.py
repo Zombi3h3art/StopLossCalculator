@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Literal
 
 from .contracts import Symbol, get_contract
 from .rates import MarginLoan, calculate_total_margin_interest
@@ -27,40 +27,6 @@ class PnLResult:
     net_win_scenario: Decimal
     net_loss_scenario: Decimal
     breakdown: dict[str, Decimal]
-
-
-def _coerce_margin_loan(loan: Any) -> MarginLoan:
-    """Normalize margin loan input into a MarginLoan dataclass."""
-
-    if isinstance(loan, MarginLoan):
-        return loan
-
-    amount: Any = getattr(loan, "amount", None)
-    apr: Any = getattr(loan, "apr", None)
-    days: Any = getattr(loan, "days_held", None)
-
-    if amount is None:
-        try:
-            amount = loan.loan_amount  # type: ignore[attr-defined]
-        except AttributeError:
-            amount = None
-
-    if amount is None and isinstance(loan, dict):
-        amount = loan.get("amount") or loan.get("loan_amount")
-        apr = loan.get("apr", apr)
-        days = loan.get("days_held", days)
-
-    if amount is None or apr is None:
-        raise ValueError("Margin loan input requires amount and apr")
-
-    if days is None:
-        days = 1
-
-    return MarginLoan(
-        loan_amount=Decimal(str(amount)),
-        apr=Decimal(str(apr)),
-        days_held=int(days),
-    )
 
 
 def calculate_gross_pnl(
@@ -121,7 +87,7 @@ def calculate_pnl(
     slippage_close: Decimal = Decimal("0"),
     energy_kwh: Decimal = Decimal("0"),
     energy_cost_per_kwh: Decimal = Decimal("0.14"),
-    margin_loans: Iterable[Any] | None = None,
+    margin_loans: Iterable[MarginLoan] | None = None,
     tax_mode: TaxMode = "section_1256",
     st_rate: Decimal = Decimal("0.24"),
     lt_rate: Decimal | None = Decimal("0.15"),
@@ -168,10 +134,7 @@ def calculate_pnl(
     else:
         energy_cost = Decimal("0.00")
 
-    loan_records: list[MarginLoan] = []
-    if margin_loans:
-        for loan in margin_loans:
-            loan_records.append(_coerce_margin_loan(loan))
+    loan_records = list(margin_loans) if margin_loans else []
     margin_interest = (
         calculate_total_margin_interest(loan_records) if loan_records else Decimal("0.00")
     )

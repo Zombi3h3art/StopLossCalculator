@@ -31,7 +31,7 @@ dependencies = [
     "typer>=0.9",
     "fastapi>=0.104",
     "uvicorn>=0.24",
-    "streamlit>=1.30",
+    "streamlit>=1.40",  # st.segmented_control
     "requests>=2.31",
 ]
 

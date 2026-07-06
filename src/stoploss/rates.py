@@ -155,15 +155,3 @@ def fetch_sofr_reference(force_refresh: bool = False) -> dict[str, str]:
 
     _sofr_cache, _sofr_cache_at = data, now
     return dict(data)
-
-
-def sofr_context_display() -> dict:
-    """Return current SOFR for UI reference (display only).
-
-    Typical brokers (Schwab, IBKR, etc.) peg margin rates to SOFR + spread.
-    Example: margin APR = SOFR + 150 bps = 5.33% + 1.50% = 6.83%
-
-    Returns:
-        Dictionary with SOFR rates and context
-    """
-    return SOFR_REFERENCE.copy()

@@ -28,7 +28,7 @@ Output (JSON/CSV/table)
 
 ### Critical Files & Patterns
 
-1. **`src/stoploss/contracts.py`**: Hard-coded CME contract specs (ES=$50/pt, NQ=$20/pt, CL=$1000/pt, GC=$100/pt). All have `min_tick` and `tick_value`. Use `get_contract(symbol)` to retrieve; call `.round_to_tick(price)` to ensure valid stops.
+1. **`src/stoploss/contracts.py`**: Hard-coded CME contract specs (ES=$50/pt, NQ=$20/pt, CL=$1000/pt, GC=$100/pt) plus micros (MES=$5, MNQ=$2, MCL=$100, MGC=$10 — each 1/10 of its parent, see `MICRO_OF`). All have `min_tick` and `tick_value`. Use `get_contract(symbol)` to retrieve; call `.round_to_tick(price)` to ensure valid stops.
 
 2. **`src/stoploss/sizing.py`**: Two sizing paths, both **risk-first** (require a `risk_cash` budget in dollars):
    - **Percent-stop**: `stop = entry ± (entry * pct_stop)` rounded to tick, then

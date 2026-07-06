@@ -103,9 +103,9 @@ class TestPercentStopGolden:
     def test_buying_power_too_small_raises(self):
         """$25k * 2.5 = $62.5k buying power < $252.5k ES notional -> cap = 0.
 
-        The error must steer the trader toward micros or more leverage.
+        The error must steer the trader toward the specific micro contract (MES).
         """
-        with pytest.raises(ValueError, match=r"[Bb]uying power"):
+        with pytest.raises(ValueError, match=r"MES"):
             size_by_percent_stop(
                 symbol="ES",
                 side="long",
@@ -115,6 +115,27 @@ class TestPercentStopGolden:
                 pct_stop=Decimal("0.004"),
                 risk_cash=Decimal("2500"),
             )
+
+    def test_micro_contract_fits_where_parent_does_not(self):
+        """Same account that can't hold ES holds 2 MES (1/10 notional).
+
+        MES notional = 5050 * 5 = $25,250; cap = floor(62500 / 25250) = 2
+        risk/contract = 20.25 * 5 = $101.25 -> qty_risk = floor(2500/101.25) = 24
+        qty = min(24, 2) = 2, capped.
+        """
+        result = size_by_percent_stop(
+            symbol="MES",
+            side="long",
+            entry=Decimal("5050"),
+            account_equity=Decimal("25000"),
+            leverage=Decimal("2.5"),
+            pct_stop=Decimal("0.004"),
+            risk_cash=Decimal("2500"),
+        )
+        assert result.qty == 2
+        assert result.stop_price == Decimal("5029.75")
+        assert result.risk_dollars_per_contract == Decimal("101.25")
+        assert result.capped_by_buying_power is True
 
     def test_tiny_entry_raises_clean_error_not_division_by_zero(self):
         """Entry 0.0001 (dashboard default) -> risk/contract quantizes to $0.00.

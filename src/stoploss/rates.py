@@ -1,11 +1,16 @@
 """Margin loan interest calculation and SOFR reference rates.
 
 - Margin interest uses a 360-day basis with daily accrual (Schwab/IBKR standard).
-- SOFR reference values are display-only defaults; see FRBNY for live rates.
+- SOFR is fetched live from the NY Fed API (markets.newyorkfed.org) with a
+  1-hour cache; on any network/parse failure the Oct-2024 static values are
+  returned, clearly labeled as a fallback.
 """
 
+import time
 from dataclasses import dataclass
 from decimal import Decimal
+
+import requests
 
 
 @dataclass
@@ -90,26 +95,66 @@ SOFR_REFERENCE: dict[str, Decimal | str] = {
 }
 
 
-def fetch_sofr_reference() -> dict[str, str]:
-    """Return SOFR reference values for API consumers.
+# NY Fed public reference-rate API (no key required)
+_NYFED_SOFR_URL = "https://markets.newyorkfed.org/api/rates/secured/sofr/last/1.json"
+_NYFED_SOFR_AVG_URL = "https://markets.newyorkfed.org/api/rates/secured/sofrai/last/1.json"
+_CACHE_TTL_SECONDS = 3600.0
+
+_sofr_cache: dict[str, str] | None = None
+_sofr_cache_at: float = 0.0
+
+
+def _fetch_sofr_live(timeout: float = 5.0) -> dict[str, str]:
+    """Fetch the current SOFR rate and 30/90-day averages from the NY Fed.
+
+    Raises requests.RequestException (or KeyError/IndexError on schema
+    surprises); callers are expected to fall back to the static reference.
+    """
+    rate_resp = requests.get(_NYFED_SOFR_URL, timeout=timeout)
+    rate_resp.raise_for_status()
+    rate = rate_resp.json()["refRates"][0]
+
+    avg_resp = requests.get(_NYFED_SOFR_AVG_URL, timeout=timeout)
+    avg_resp.raise_for_status()
+    avg = avg_resp.json()["refRates"][0]
+
+    return {
+        "current": str(rate["percentRate"]),
+        "avg_30": str(avg["average30day"]),
+        "avg_90": str(avg["average90day"]),
+        "source": "Federal Reserve Bank of New York (live)",
+        "as_of": str(rate.get("effectiveDate", "")),
+    }
+
+
+def fetch_sofr_reference(force_refresh: bool = False) -> dict[str, str]:
+    """Return SOFR reference values (live NY Fed, cached 1h, static fallback).
 
     Returns a dict with keys expected by the API layer/tests:
     - current: current SOFR rate as a string
-    - avg_30: 30-day average as a string
-    - avg_90: 90-day average as a string
-    - source: source string
-
-    Notes:
-    - Values are static defaults; replace with a live fetch if desired and
-      cache results. Keep Decimal->str conversion here to preserve precision
-      without floats.
+    - avg_30 / avg_90: moving averages as strings
+    - source: where the numbers came from (says "fallback" when static)
+    - as_of: effective date of the live rate, or the vintage of the fallback
     """
-    return {
-        "current": str(SOFR_REFERENCE["current_rate"]),
-        "avg_30": str(SOFR_REFERENCE["30_day_avg"]),
-        "avg_90": str(SOFR_REFERENCE["90_day_avg"]),
-        "source": str(SOFR_REFERENCE["source"]),
-    }
+    global _sofr_cache, _sofr_cache_at
+
+    now = time.monotonic()
+    if not force_refresh and _sofr_cache is not None and now - _sofr_cache_at < _CACHE_TTL_SECONDS:
+        return dict(_sofr_cache)
+
+    try:
+        data = _fetch_sofr_live()
+    except (requests.RequestException, KeyError, IndexError, ValueError, TypeError):
+        data = {
+            "current": str(SOFR_REFERENCE["current_rate"]),
+            "avg_30": str(SOFR_REFERENCE["30_day_avg"]),
+            "avg_90": str(SOFR_REFERENCE["90_day_avg"]),
+            "source": f"{SOFR_REFERENCE['source']} (static fallback)",
+            "as_of": "2024-10",
+        }
+
+    _sofr_cache, _sofr_cache_at = data, now
+    return dict(data)
 
 
 def sofr_context_display() -> dict:

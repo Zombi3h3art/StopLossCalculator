@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from stoploss.cashflow import calculate_pnl
 from stoploss.contracts import get_contract
 from stoploss.energy import ENERGY_PROFILES
-from stoploss.rates import MarginLoan
+from stoploss.rates import MarginLoan, fetch_sofr_reference
 from stoploss.simple_sizing import calculate_stop_loss
 from stoploss.sizing import size_by_percent_stop
 
@@ -273,7 +273,12 @@ with left_col:
     symbol = "ES"  # Default
 
     if mode == "Futures (Precision)":
-        symbol = st.selectbox("Contract", ["ES", "NQ", "CL", "GC"], key="symbol")
+        symbol = st.selectbox(
+            "Contract",
+            ["ES", "NQ", "CL", "GC", "MES", "MNQ", "MCL", "MGC"],
+            help="M-prefixed micros are 1/10 the size — ideal for smaller accounts",
+            key="symbol",
+        )
 
         contract = get_contract(symbol)
         st.caption(f"Tick: {contract.min_tick} | Point Value: ${contract.point_value}")
@@ -603,6 +608,11 @@ if mode == "Futures (Precision)" and fs_result is not None:
             st.markdown(
                 '<div class="section-label">Margin loans (up to 3)</div>',
                 unsafe_allow_html=True,
+            )
+            _sofr = fetch_sofr_reference()  # live NY Fed, cached 1h, static fallback
+            st.caption(
+                f"Rate context: SOFR {_sofr['current']}% ({_sofr['source']}) — "
+                "brokers typically charge SOFR + a spread as margin APR"
             )
             margin_loans = []
             for i in (1, 2, 3):

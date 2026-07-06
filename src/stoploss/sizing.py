@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 from typing import Literal
 
-from .contracts import Symbol, get_contract
+from .contracts import MICRO_OF, Symbol, get_contract
 
 Side = Literal["long", "short"]
 
@@ -142,11 +142,16 @@ def size_by_percent_stop(
         (gross_exposure / contract_notional).to_integral_value(rounding=ROUND_DOWN)
     )
     if buying_power_qty_cap <= 0:
+        micro = MICRO_OF.get(symbol)
+        hint = (
+            f"Consider the micro contract {micro} (1/10 size)"
+            if micro
+            else "Increase leverage or equity"
+        )
         raise ValueError(
             f"Buying power too small: equity {account_equity} x leverage {leverage} "
             f"= {gross_exposure} cannot control one {symbol} contract "
-            f"(notional {contract_notional.quantize(Decimal('0.01'))}). "
-            "Increase leverage/equity or trade micro contracts."
+            f"(notional {contract_notional.quantize(Decimal('0.01'))}). {hint}."
         )
 
     # Risk budget: how many contracts the acceptable loss affords

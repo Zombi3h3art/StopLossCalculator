@@ -27,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Micro contracts** MES ($5/pt), MNQ ($2/pt), MCL ($100/pt), MGC ($10/pt) — specs
+  verified against CME/TradeStation; each exactly 1/10 of its parent. The
+  "buying power too small" sizing error now names the specific micro sibling.
+- **Live SOFR** from the NY Fed API (current + 30/90-day averages), cached 1 hour,
+  with the Oct-2024 static values as a clearly-labeled offline fallback. Shown as
+  rate context in the dashboard's margin-loan panel and served by `/refs/sofr`.
+- **Live EIA electricity price** (US residential average) when `EIA_API_KEY` is set,
+  same cache/fallback shape; `/refs/electricity` uses it.
+- **Dashboard P&L Scenario & Costs** section (Futures mode): target price, fees,
+  slippage, §1256 vs short-term taxes, up to 3 margin loans, energy profiles;
+  gross/net win-loss metrics, net risk/reward, cost breakdown table, JSON/CSV export.
+  Light-first theme via `.streamlit/config.toml`; entry starts empty so the
+  empty state is reachable. Headless AppTest suite covers the flows.
 - `PositionSize.buying_power_qty_cap` and `.capped_by_buying_power` (also in the API
   `SizingOutput`) so UIs can explain when buying power, not risk, limits size.
 - CLI: `--risk` (risk budget) is now used by percent-stop sizing; new `--atr`,

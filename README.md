@@ -6,7 +6,7 @@ Precision stop-loss calculator for traders. Risk-first position sizing and P&L c
 
 -   **Instant Calculations**: Stop loss and P&L updates as you adjust parameters
 -   **Risk-First Sizing**: Quantity comes from your risk budget, capped by your declared buying power — never more than you said you'd lose
--   **Contracts Supported**: ES, NQ, CL, GC with accurate point values and tick rounding
+-   **Contracts Supported**: ES, NQ, CL, GC plus micros (MES, MNQ, MCL, MGC) with accurate point values and tick rounding
 -   **Tax Accounting**: Federal short-term ordinary + §1256 60/40 split (Form 6781)
 -   **Margin Support**: Up to 3 cascading margin loans with daily accrual interest (360-day basis)
 -   **Energy Costs**: EIA-based energy cost estimation
@@ -109,12 +109,18 @@ stop_loss_calculator/
 
 ## 📝 Supported Contracts
 
-| Symbol | Point Value | Tick  | Tick Value | Contract              |
-| ------ | ----------- | ----- | ---------- | --------------------- |
-| ES     | $50         | 0.25  | $12.50     | E-mini S&P 500        |
-| NQ     | $20         | 0.25  | $5.00      | E-mini Nasdaq 100     |
-| CL     | $1,000      | $0.01 | $10.00     | Light Sweet Crude Oil |
-| GC     | $100        | $0.10 | $10.00     | Gold Futures          |
+| Symbol | Point Value | Tick  | Tick Value | Contract                    |
+| ------ | ----------- | ----- | ---------- | --------------------------- |
+| ES     | $50         | 0.25  | $12.50     | E-mini S&P 500              |
+| NQ     | $20         | 0.25  | $5.00      | E-mini Nasdaq 100           |
+| CL     | $1,000      | $0.01 | $10.00     | Light Sweet Crude Oil       |
+| GC     | $100        | $0.10 | $10.00     | Gold Futures                |
+| MES    | $5          | 0.25  | $1.25      | Micro E-mini S&P 500 (1/10) |
+| MNQ    | $2          | 0.25  | $0.50      | Micro E-mini Nasdaq (1/10)  |
+| MCL    | $100        | $0.01 | $1.00      | Micro WTI Crude Oil (1/10)  |
+| MGC    | $10         | $0.10 | $1.00      | Micro Gold (1/10)           |
+
+When buying power can't control a full-size contract, sizing errors point you at the micro sibling.
 
 ## ⚙️ Advanced Usage
 
@@ -191,7 +197,7 @@ mypy src/                                 # Type check
 
 -   `interest = principal × APR × days / 360` (broker-standard 360-day basis, daily accrual)
 -   Up to 3 cascading loans (e.g., Reg T base + portfolio tier + emergency tier)
--   Brokers peg margin APR to SOFR + spread; the SOFR value shown is a static reference (Oct 2024: ~5.33%) — see [NY Fed](https://www.newyorkfed.org/markets/reference-rates/sofr) for live rates
+-   Brokers peg margin APR to SOFR + spread; SOFR is fetched live from the [NY Fed API](https://www.newyorkfed.org/markets/reference-rates/sofr) (cached 1h) with an Oct-2024 static fallback when offline
 
 ### Energy Estimation
 
@@ -211,9 +217,11 @@ mypy src/                                 # Type check
 -   [x] FastAPI REST API
 -   [x] Streamlit dashboard
 -   [x] GitHub Actions CI
--   [ ] Live EIA/SOFR fetch + caching
--   [ ] Micro contracts (MES/MNQ/MCL/MGC)
--   [ ] Full cost stack (P&L, taxes, margin) in the dashboard
+-   [x] Live SOFR fetch (NY Fed, 1h cache, static fallback); EIA electricity via optional `EIA_API_KEY`
+-   [x] Micro contracts (MES/MNQ/MCL/MGC)
+-   [x] Full cost stack (P&L, taxes, margin, energy) in the dashboard + JSON/CSV export
+-   [ ] CME holiday / trading-hours calendar
+-   [ ] Multi-scenario comparison (side-by-side trades)
 
 ## ⚠️ Disclaimers
 

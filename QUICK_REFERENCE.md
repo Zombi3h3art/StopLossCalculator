@@ -82,7 +82,7 @@ Risk/Reward: ~1.99:1 net
 
 | Feature | Rule |
 |---------|------|
-| **Symbols** | ES ($50/pt), NQ ($20/pt), CL ($1000/pt), GC ($100/pt) |
+| **Symbols** | ES ($50/pt), NQ ($20/pt), CL ($1000/pt), GC ($100/pt) + micros MES/MNQ/MCL/MGC (1/10 size) |
 | **Position Sizing** | Qty = min(floor(risk_budget ÷ risk_$/contract), floor(equity × leverage ÷ (entry × ppv))) |
 | **Stop Rounding** | ES/NQ: 0.25 tick, CL: $0.01, GC: $0.10 — risk recomputed from rounded stop |
 | **Taxes** | ST: rate × profit; §1256: (0.60×LT + 0.40×ST) × profit |
@@ -123,8 +123,8 @@ mypy src/                           # Type check
 ```
 POST /size          # Risk-first position size and stop (needs risk_cash)
 POST /pnl           # Full P&L with all costs
-GET /refs/electricity    # US avg electricity cost (EIA)
-GET /refs/sofr      # SOFR reference (static)
+GET /refs/electricity    # US avg electricity cost (live EIA with EIA_API_KEY, else 14c)
+GET /refs/sofr      # SOFR (live NY Fed, 1h cache, static fallback)
 GET /health         # Health check
 ```
 

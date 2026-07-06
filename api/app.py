@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from stoploss import __version__
 from stoploss.cashflow import calculate_pnl
-from stoploss.energy import estimate_energy_cost
+from stoploss.energy import fetch_electricity_price_cents
 from stoploss.rates import fetch_sofr_reference
 from stoploss.schemas import (
     ApiResponse,
@@ -254,12 +254,13 @@ async def get_electricity_reference() -> ApiResponse:
     ```
     """
     try:
-        cost = estimate_energy_cost(power_kw=Decimal("1"), hours_used=Decimal("1"))  # 1 kWh
+        cents = fetch_electricity_price_cents()  # live EIA if key set, else 14c avg
+        cost = (cents / Decimal("100")).quantize(Decimal("0.0001"))
         return ApiResponse(
             success=True,
             data={
-                "cost_per_kwh": str(cost),  # cost is already $ per 1 kWh
-                "source": "EIA Table 5.3 (US Average)",
+                "cost_per_kwh": str(cost),
+                "source": "EIA electricity retail sales (US residential average)",
                 "currency": "USD",
                 "unit": "per kWh",
             },
@@ -291,14 +292,15 @@ async def get_sofr_reference() -> ApiResponse:
     ```
     """
     try:
-        sofr_data = fetch_sofr_reference()
+        sofr_data = fetch_sofr_reference()  # live NY Fed, 1h cache, static fallback
         return ApiResponse(
             success=True,
             data={
                 "current": sofr_data.get("current", "5.33"),
                 "30_day_avg": sofr_data.get("avg_30", "5.32"),
                 "90_day_avg": sofr_data.get("avg_90", "5.30"),
-                "source": "Federal Reserve",
+                "source": sofr_data.get("source", "Federal Reserve"),
+                "as_of": sofr_data.get("as_of", ""),
                 "currency": "USD",
                 "unit": "Annual %",
             },

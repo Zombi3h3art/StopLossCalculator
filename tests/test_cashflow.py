@@ -2,8 +2,8 @@
 
 from decimal import Decimal
 
-from src.stoploss.cashflow import calculate_pnl
-from src.stoploss.schemas import MarginLoanInput
+from stoploss.cashflow import calculate_pnl
+from stoploss.schemas import MarginLoanInput
 
 
 class TestGrossPnL:

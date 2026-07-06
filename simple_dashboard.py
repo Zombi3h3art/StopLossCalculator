@@ -1,12 +1,17 @@
 """Stop Loss Calculator Dashboard - Two-column layout for instant results."""
 
+import sys
 from decimal import Decimal
+from pathlib import Path
 
 import streamlit as st
 
-from src.stoploss.contracts import get_contract
-from src.stoploss.simple_sizing import calculate_stop_loss
-from src.stoploss.sizing import size_by_percent_stop
+# Allow `streamlit run simple_dashboard.py` from a source checkout without installing
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+from stoploss.contracts import get_contract
+from stoploss.simple_sizing import calculate_stop_loss
+from stoploss.sizing import size_by_percent_stop
 
 # See CSS custom properties below for color definitions
 

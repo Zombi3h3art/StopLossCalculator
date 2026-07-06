@@ -1,16 +1,27 @@
 """REST API for Stop Loss Calculator using FastAPI."""
 
+import sys
 from decimal import Decimal
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.stoploss import __version__
-from src.stoploss.cashflow import calculate_pnl
-from src.stoploss.energy import estimate_energy_cost
-from src.stoploss.rates import fetch_sofr_reference
-from src.stoploss.schemas import ApiResponse, PnLInput, PnLOutput, SizingInput, SizingOutput
-from src.stoploss.sizing import size_by_percent_stop
+# Allow `uvicorn api.app:app` from a source checkout without installing
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from stoploss import __version__
+from stoploss.cashflow import calculate_pnl
+from stoploss.energy import estimate_energy_cost
+from stoploss.rates import fetch_sofr_reference
+from stoploss.schemas import (
+    ApiResponse,
+    PnLInput,
+    PnLOutput,
+    SizingInput,
+    SizingOutput,
+)
+from stoploss.sizing import size_by_percent_stop
 
 app = FastAPI(
     title="Stop Loss Net Edge Calculator API",

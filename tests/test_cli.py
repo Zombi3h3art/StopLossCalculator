@@ -2,7 +2,7 @@
 
 from typer.testing import CliRunner
 
-from src.stoploss.cli import app
+from stoploss.cli import app
 
 runner = CliRunner()
 

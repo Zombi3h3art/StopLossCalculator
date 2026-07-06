@@ -15,8 +15,8 @@ import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
-from src.stoploss.contracts import get_contract
-from src.stoploss.sizing import size_by_atr_stop, size_by_percent_stop
+from stoploss.contracts import get_contract
+from stoploss.sizing import size_by_atr_stop, size_by_percent_stop
 
 
 class TestPercentStopGolden:

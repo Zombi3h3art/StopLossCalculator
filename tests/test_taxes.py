@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from src.stoploss.taxes import calculate_tax_section_1256, calculate_tax_short_term
+from stoploss.taxes import calculate_tax_section_1256, calculate_tax_short_term
 
 
 class TestShortTermTax:

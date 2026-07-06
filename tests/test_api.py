@@ -5,7 +5,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from api.app import app
-from src.stoploss import __version__
+from stoploss import __version__
 
 client = TestClient(app)
 

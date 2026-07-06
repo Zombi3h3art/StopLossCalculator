@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.stoploss.contracts import get_contract
+from stoploss.contracts import get_contract
 
 
 class TestContractSpecs:

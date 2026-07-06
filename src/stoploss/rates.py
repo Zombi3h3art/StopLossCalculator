@@ -81,7 +81,7 @@ def calculate_total_margin_interest(loans: list[MarginLoan]) -> Decimal:
 
 # Reference SOFR rates (as of Oct 2024, from Federal Reserve)
 # These are display-only; update periodically or fetch live
-SOFR_REFERENCE = {
+SOFR_REFERENCE: dict[str, Decimal | str] = {
     "current_rate": Decimal("5.33"),  # % per annum
     "30_day_avg": Decimal("5.35"),
     "90_day_avg": Decimal("5.30"),
@@ -108,7 +108,7 @@ def fetch_sofr_reference() -> dict[str, str]:
         "current": str(SOFR_REFERENCE["current_rate"]),
         "avg_30": str(SOFR_REFERENCE["30_day_avg"]),
         "avg_90": str(SOFR_REFERENCE["90_day_avg"]),
-        "source": SOFR_REFERENCE["source"],
+        "source": str(SOFR_REFERENCE["source"]),
     }
 
 

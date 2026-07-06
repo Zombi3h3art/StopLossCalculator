@@ -30,9 +30,12 @@ Output (JSON/CSV/table)
 
 1. **`src/stoploss/contracts.py`**: Hard-coded CME contract specs (ES=$50/pt, NQ=$20/pt, CL=$1000/pt, GC=$100/pt). All have `min_tick` and `tick_value`. Use `get_contract(symbol)` to retrieve; call `.round_to_tick(price)` to ensure valid stops.
 
-2. **`src/stoploss/sizing.py`**: Two sizing paths:
-   - **Percent-stop (risk-first)**: `qty = floor(gross_exposure / (entry * ppv))`, then `stop = entry ± (entry * pct_stop)`, rounded to tick.
-   - **ATR/structure**: Not yet CLI-exposed; stub exists.
+2. **`src/stoploss/sizing.py`**: Two sizing paths, both **risk-first** (require a `risk_cash` budget in dollars):
+   - **Percent-stop**: `stop = entry ± (entry * pct_stop)` rounded to tick, then
+     `qty = min(floor(available_risk / risk_$_per_contract), floor(equity * leverage / (entry * ppv)))`.
+     The second term is the buying-power cap; distinct ValueErrors explain which constraint failed.
+   - **ATR/structure**: `stop = entry ± max(k_atr * ATR, structure distance)` rounded to tick;
+     qty from the *rounded* stop distance. CLI-exposed via `--atr/--k-atr/--swing`.
 
 3. **`src/stoploss/cashflow.py`**: Calculates `PnLResult` with gross/net for win and loss scenarios. Includes all costs: fees, slippage, energy, margin interest, taxes.
 
@@ -56,14 +59,15 @@ Output (JSON/CSV/table)
 - **No state/county taxes**, **no wash-sale logic** — simple federal only, as documented in README.md.
 - **Formulas are scriptural anchors** (Luke 14:28, Proverbs 11:1): count costs fully; no false math.
 
-### Example: ES Long, Percent Stop
+### Example: ES Long, Percent Stop (risk-first)
 
 ```python
-# Entry=5050, pct_stop=0.4%, equity=$20k, lev=3
-gross_exposure = 20000 * 3 = $60,000
-loss_per_unit = 5050 * 0.004 = 20.2 pts
-qty = floor(60000 / (5050 * 50)) = 0 contracts (too small!)
-# → Size by risk instead: qty = (risk_cash - fees) / (ppv * loss_per_unit)
+# Entry=5050, pct_stop=0.4%, equity=$25k, lev=12, risk_cash=$2500, fees $2+$2
+stop = 5050 - 20.20 = 5029.80 -> tick-rounded to 5029.75 (risk 20.25 pts)
+risk_$_per_contract = 20.25 * 50 = $1,012.50
+qty_risk = floor((2500 - 4) / 1012.50) = 2
+qty_cap  = floor(25000 * 12 / (5050 * 50)) = 1   # buying-power cap
+qty = min(2, 1) = 1  (capped_by_buying_power=True)
 ```
 
 ---
@@ -81,16 +85,16 @@ pytest --cov=src/stoploss                 # Coverage report
 ### Running the CLI
 ```bash
 python -m stoploss size --symbol ES --side long --entry 5050 \
-  --equity 20000 --leverage 3 --pct-stop 0.004 --fees-open 2 --fees-close 2
+  --equity 25000 --leverage 12 --pct-stop 0.004 --risk 2500 --fees-open 2 --fees-close 2
 
-python -m stoploss pnl --symbol ES --side long --entry 5050 --target 5100 --stop 5030 \
-  --qty 2 --fees-open 2 --fees-close 2 --tax-mode 1256 --st-rate 0.24 --lt-rate 0.15
+python -m stoploss pnl --symbol ES --side long --entry 5050 --target 5100 --stop 5029.75 \
+  --qty 1 --fees-open 2 --fees-close 2 --tax-mode 1256 --st-rate 0.24 --lt-rate 0.15
 ```
 
 ### Running the Streamlit UI
 ```bash
-streamlit run ui_app.py
-# Opens localhost:8501 with dual-pane UI (sizing left, P&L right)
+streamlit run simple_dashboard.py
+# Opens localhost:8501 with two-column UI (inputs left, results right)
 ```
 
 ### Code Quality

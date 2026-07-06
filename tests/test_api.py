@@ -5,6 +5,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from api.app import app
+from src.stoploss import __version__
 
 client = TestClient(app)
 
@@ -17,21 +18,27 @@ class TestHealthEndpoint:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json()["status"] == "ok"
-        assert response.json()["version"] == "0.1.0"
+        assert response.json()["version"] == __version__
 
 
 class TestSizingEndpoint:
-    """Test position sizing endpoint."""
+    """Test position sizing endpoint (risk-first semantics)."""
 
-    def test_size_es_basic(self):
-        """Test ES sizing calculation via API."""
+    def test_size_es_golden(self):
+        """ES long golden case (matches tests/test_sizing.py hand math).
+
+        risk $2500 - $4 fees -> qty_risk 2; buying power 25000*12 caps at 1.
+        """
         payload = {
             "symbol": "ES",
             "side": "long",
             "entry": "5050.00",
-            "account_equity": "20000.00",
-            "leverage": "3.0",
+            "account_equity": "25000.00",
+            "leverage": "12",
             "pct_stop": "0.004",
+            "risk_cash": "2500.00",
+            "fees_open": "2.00",
+            "fees_close": "2.00",
         }
 
         response = client.post("/size", json=payload)
@@ -39,19 +46,22 @@ class TestSizingEndpoint:
         data = response.json()
         assert data["success"] is True
         assert data["data"]["symbol"] == "ES"
-        assert data["data"]["qty"] > 0
-        stop_price = Decimal(str(data["data"]["stop_price"]))
-        assert stop_price < Decimal("5050")
+        assert data["data"]["qty"] == 1
+        assert Decimal(str(data["data"]["stop_price"])) == Decimal("5029.75")
+        assert Decimal(str(data["data"]["risk_dollars_per_contract"])) == Decimal("1012.50")
+        assert data["data"]["buying_power_qty_cap"] == 1
+        assert data["data"]["capped_by_buying_power"] is True
 
-    def test_size_nq_basic(self):
-        """Test NQ sizing calculation via API."""
+    def test_size_nq_short_golden(self):
+        """NQ short golden case: risk-bound qty 1, tick-exact stop above entry."""
         payload = {
             "symbol": "NQ",
-            "side": "long",
-            "entry": "18000.00",
+            "side": "short",
+            "entry": "18500.00",
             "account_equity": "50000.00",
-            "leverage": "2.0",
-            "pct_stop": "0.005",
+            "leverage": "8",
+            "pct_stop": "0.003",
+            "risk_cash": "1500.00",
         }
 
         response = client.post("/size", json=payload)
@@ -59,6 +69,40 @@ class TestSizingEndpoint:
         data = response.json()
         assert data["success"] is True
         assert data["data"]["symbol"] == "NQ"
+        assert data["data"]["qty"] == 1
+        assert Decimal(str(data["data"]["stop_price"])) == Decimal("18555.50")
+        assert data["data"]["capped_by_buying_power"] is False
+
+    def test_size_missing_risk_cash_rejected(self):
+        """Percent-stop sizing without a risk budget must be a 400, not a guess."""
+        payload = {
+            "symbol": "ES",
+            "side": "long",
+            "entry": "5050.00",
+            "account_equity": "25000.00",
+            "leverage": "12",
+            "pct_stop": "0.004",
+        }
+
+        response = client.post("/size", json=payload)
+        assert response.status_code == 400
+        assert "risk_cash" in response.json()["detail"]
+
+    def test_size_buying_power_too_small(self):
+        """Low declared leverage cannot control one ES contract -> 400 with guidance."""
+        payload = {
+            "symbol": "ES",
+            "side": "long",
+            "entry": "5050.00",
+            "account_equity": "25000.00",
+            "leverage": "2.5",
+            "pct_stop": "0.004",
+            "risk_cash": "2500.00",
+        }
+
+        response = client.post("/size", json=payload)
+        assert response.status_code == 400
+        assert "uying power" in response.json()["detail"]
 
     def test_size_invalid_symbol(self):
         """Test sizing with invalid symbol returns error."""
@@ -66,9 +110,10 @@ class TestSizingEndpoint:
             "symbol": "INVALID",
             "side": "long",
             "entry": "5050.00",
-            "account_equity": "20000.00",
-            "leverage": "3.0",
+            "account_equity": "25000.00",
+            "leverage": "12",
             "pct_stop": "0.004",
+            "risk_cash": "2500.00",
         }
 
         response = client.post("/size", json=payload)
@@ -80,31 +125,14 @@ class TestSizingEndpoint:
             "symbol": "ES",
             "side": "invalid",
             "entry": "5050.00",
-            "account_equity": "20000.00",
-            "leverage": "3.0",
+            "account_equity": "25000.00",
+            "leverage": "12",
             "pct_stop": "0.004",
+            "risk_cash": "2500.00",
         }
 
         response = client.post("/size", json=payload)
         assert response.status_code == 400
-
-    def test_size_short(self):
-        """Test short sizing calculation."""
-        payload = {
-            "symbol": "ES",
-            "side": "short",
-            "entry": "5050.00",
-            "account_equity": "20000.00",
-            "leverage": "3.0",
-            "pct_stop": "0.004",
-        }
-
-        response = client.post("/size", json=payload)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        stop_price = Decimal(str(data["data"]["stop_price"]))
-        assert stop_price > Decimal("5050")  # Stop above entry for short
 
 
 class TestPnLEndpoint:

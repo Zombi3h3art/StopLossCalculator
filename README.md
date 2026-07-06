@@ -1,16 +1,17 @@
 # Stop Loss Calculator
 
-Precision stop-loss calculator for traders. P&L calculations accounting for position sizing, margin interest, and energy costs.
+Precision stop-loss calculator for traders. Risk-first position sizing and P&L calculations accounting for fees, slippage, federal taxes, margin interest, and energy costs.
 
 ## 🎯 Features
 
 -   **Instant Calculations**: Stop loss and P&L updates as you adjust parameters
+-   **Risk-First Sizing**: Quantity comes from your risk budget, capped by your declared buying power — never more than you said you'd lose
 -   **Contracts Supported**: ES, NQ, CL, GC with accurate point values and tick rounding
 -   **Tax Accounting**: Federal short-term ordinary + §1256 60/40 split (Form 6781)
 -   **Margin Support**: Up to 3 cascading margin loans with daily accrual interest (360-day basis)
 -   **Energy Costs**: EIA-based energy cost estimation
 -   **Fees & Slippage**: Fully configurable transaction costs
--   **Beautiful UI**: Two-column Streamlit dashboard with trade summary card and copyable stop prices
+-   **Three Interfaces**: Streamlit dashboard (primary), Typer CLI, FastAPI REST API
 
 ## 🚀 Quick Start
 
@@ -23,421 +24,224 @@ Precision stop-loss calculator for traders. P&L calculations accounting for posi
 ### Option 2: Manual Launch
 
 ```bash
-cd "c:\Users\cwmil\Desktop\Python_Projects\projects\stop_loss_calculator"
-pip install streamlit pydantic
+git clone https://github.com/Zombi3h3art/StopLossCalculator.git
+cd StopLossCalculator
+pip install -e ".[dev]"
 streamlit run simple_dashboard.py
 ```
+
+Open [`http://localhost:8501`](http://localhost:8501) in your browser.
 
 ## 📊 Using the Dashboard
 
 **Left Column (Inputs):**
 
--   Ticker price - Current asset price
--   Direction - Buy/Long or Sell/Short
--   Trade amount - Cash you're risking
--   Leverage - 1x to 500x multiplier
--   Acceptable loss % - Risk as % of trade amount
+-   Entry price — current asset price
+-   Direction — Long or Short
+-   Account equity / trade amount — cash backing this trade
+-   Leverage — declared multiplier (defines your buying power)
+-   Acceptable loss % — risk budget as % of equity
 
 **Right Column (Results):**
 
--   **Trade Summary Card** - Entry, direction, leverage, stop price, allowed move, max loss
--   **Copyable Stop Price** - Highlighted for easy copying to trading platform
--   **Position Details** - Notional exposure, max risk, units controlled, risk/leverage ratio
--   **Warnings** - Alerts for extreme leverage
+-   **Trade Summary Card** — entry, direction, leverage, stop price, allowed move, max loss
+-   **Copyable Stop Price** — highlighted for easy copying to your trading platform
+-   **Position Details** — notional of the actual position, max risk, units/contracts, risk/leverage ratio
+-   **Warnings** — extreme leverage and buying-power cap alerts
 
 ## 📐 The Math
 
-### How Stop Prices Work
+### Simple / Generic mode (any asset)
 
-Your stop price protects your account by limiting maximum loss. Here's how it's calculated:
+Leverage compresses your acceptable move:
 
-**Step 1: Determine Your Allowed Move**
+$$\text{allowed\_move\_pct} = \frac{\text{acceptable\_risk\_pct}}{\text{leverage}}$$
 
-Leverage compresses your acceptable risk. The higher your leverage, the smaller your move can be:
+-   **LONG**: `stop = entry × (1 − allowed_move_pct/100)`
+-   **SHORT**: `stop = entry × (1 + allowed_move_pct/100)`
+-   `max_loss = equity × acceptable_risk_pct / 100`
+-   `notional = equity × leverage`
 
-$$\text{allowed\_move\_pct} = \frac{\text{acceptable\_risk\_pct}}{100 \times \text{leverage}}$$
+### Futures mode (risk-first, tick-rounded)
 
-**Step 2: Calculate Stop Price**
+1. **Stop placement**: `stop = entry ∓ entry × pct_stop`, rounded to the contract tick; the risk distance is then **recomputed from the rounded stop** so R stays honest.
+2. **Risk per contract**: `risk_$_per_contract = |entry − stop| × point_value`
+3. **Quantity** (the core rule):
 
-Your stop is placed this distance away from entry:
+$$qty = \min\left(\left\lfloor\frac{\text{risk\_budget} - \text{fees} - \text{slippage}}{\text{risk\_\$\_per\_contract}}\right\rfloor,\ \left\lfloor\frac{\text{equity} \times \text{leverage}}{\text{entry} \times \text{point\_value}}\right\rfloor\right)$$
 
--   **LONG trades** (buying): `stop = entry − (entry × allowed_move_pct)`
--   **SHORT trades** (selling): `stop = entry + (entry × allowed_move_pct)`
+The first term spends your **risk budget** (max acceptable loss). The second term is the **buying-power cap** — the contracts your declared equity × leverage can control. If either is 0 you get a clear error (try micro contracts or adjust leverage).
 
-### Position Size & Exposure
+4. **Max loss** = `qty × risk_$_per_contract` — what you actually lose if stopped.
 
-**Notional Exposure** (total capital deployed):
-$$\text{notional\_exposure} = \text{trade\_amount} \times \text{leverage}$$
+### 🏆 Example (real code output)
 
-**Maximum Loss** (money at risk):
-$$\text{max\_loss} = \text{trade\_amount} \times \frac{\text{acceptable\_risk\_pct}}{100}$$
+**Long ES at 5050.00** — $25,000 account, 12x declared leverage, 0.4% stop, $2,500 risk budget, $2.50 fees each way:
 
-This is your hard stop—when the stop triggers, you lose this amount.
+-   Stop: 5029.80 → tick-rounded to **5029.75** (20.25 pts = $1,012.50/contract)
+-   Risk budget affords 2 contracts; buying power ($300k ÷ $252.5k notional) caps at **1**
+-   **Qty: 1 contract (capped)** · **Max loss: $1,012.50**
 
-## 🏆 Example Trade
-
-**Long ES at 5050.00:**
-
--   Trade amount: $10,000
--   Leverage: 10x
--   Acceptable loss: 5%
--   **Results:**
-    -   Allowed move: 0.5% (5% ÷ 10)
-    -   Stop price: $5024.75 (5050 - 0.5%)
-    -   Max loss: $500 ($10k × 5%)
-    -   Notional exposure: $100,000
-
-## 🔧 Installation
-
-### From Source
-
-```bash
-git clone https://github.com/Zombi3h3art/StopLossCalculator.git
-cd "Stop Loss Calculator"
-pip install -e ".[dev]"
-```
-
-### Dependencies
-
-```bash
-pip install streamlit pydantic
-```
+See [WORKED_EXAMPLES.md](WORKED_EXAMPLES.md) for all four contracts with full P&L, taxes, and margin — every number generated by running the code.
 
 ## 📁 Project Structure
 
 ```
-Stop Loss Calculator/
+stop_loss_calculator/
 ├── simple_dashboard.py          # Main Streamlit UI
+├── api/app.py                   # FastAPI REST API
 ├── src/stoploss/
-│   ├── simple_sizing.py        # Stop loss calculations
-│   ├── contracts.py            # ES/NQ/CL/GC specs
-│   ├── cashflow.py             # P&L calculations
-│   ├── taxes.py                # Federal tax calculations
-│   ├── rates.py                # Margin interest
-│   ├── energy.py               # Energy cost estimation
-│   └── schemas.py              # Pydantic validation models
-├── tests/                      # Unit tests
-├── README.md                   # This file
-└── CHANGELOG.md                # Version history
+│   ├── sizing.py                # Risk-first futures sizing (percent & ATR stops)
+│   ├── simple_sizing.py         # Generic stop-loss calculations (any asset)
+│   ├── contracts.py             # ES/NQ/CL/GC specs + tick rounding
+│   ├── cashflow.py              # Gross/net P&L with all costs
+│   ├── taxes.py                 # Federal tax (short-term + §1256 60/40)
+│   ├── rates.py                 # Margin interest (360-day), SOFR reference
+│   ├── energy.py                # Energy cost estimation (EIA)
+│   ├── schemas.py               # Pydantic v2 validation models
+│   └── cli.py                   # Typer CLI (stoploss size / stoploss pnl)
+├── tests/                       # Golden + property tests (pytest, hypothesis)
+├── README.md                    # This file
+├── WORKED_EXAMPLES.md           # 4 complete trades, code-generated numbers
+├── QUICK_REFERENCE.md           # Command cheat sheet
+└── CHANGELOG.md                 # Version history
 ```
 
 ## 📝 Supported Contracts
 
-| Symbol | Point Value | Tick  | Tick Value |
-| ------ | ----------- | ----- | ---------- |
-| ES     | $50         | 0.25  | $12.50     |
-| NQ     | $20         | 0.25  | $5.00      |
-| CL     | $1,000      | $0.01 | $10.00     |
-| GC     | $100        | $0.10 | $10.00     |
+| Symbol | Point Value | Tick  | Tick Value | Contract              |
+| ------ | ----------- | ----- | ---------- | --------------------- |
+| ES     | $50         | 0.25  | $12.50     | E-mini S&P 500        |
+| NQ     | $20         | 0.25  | $5.00      | E-mini Nasdaq 100     |
+| CL     | $1,000      | $0.01 | $10.00     | Light Sweet Crude Oil |
+| GC     | $100        | $0.10 | $10.00     | Gold Futures          |
 
 ## ⚙️ Advanced Usage
+
+### CLI
+
+```bash
+# Risk-first percent-stop sizing
+stoploss size --symbol ES --side long --entry 5050 --equity 25000 \
+  --leverage 12 --pct-stop 0.004 --risk 2500 --fees-open 2.5 --fees-close 2.5
+
+# ATR/structure stop sizing
+stoploss size --symbol ES --side long --entry 5050.10 --equity 25000 \
+  --atr 10.07 --k-atr 2 --risk 2010
+
+# Full P&L with §1256 taxes and a margin loan
+stoploss pnl --symbol ES --side long --entry 5050 --target 5100 --stop 5029.75 \
+  --qty 1 --fees-open 2.5 --fees-close 2.5 --tax-mode 1256 \
+  --st-rate 0.24 --lt-rate 0.15 --loan1 5000:0.065 --days 2
+```
+
+### REST API
+
+```bash
+python -m uvicorn api.app:app --reload
+# POST http://localhost:8000/size   (needs risk_cash — see WORKED_EXAMPLES.md)
+# POST http://localhost:8000/pnl
+# GET  http://localhost:8000/refs/sofr · /refs/electricity · /health
+```
 
 ### Python API (Programmatic)
 
 ```python
 from decimal import Decimal
-from src.stoploss.simple_sizing import calculate_stop_loss
+from stoploss.simple_sizing import calculate_stop_loss
+from stoploss.sizing import size_by_percent_stop
 
+# Generic (any asset)
 result = calculate_stop_loss(
-    entry_price=Decimal("5050.00"),
-    side="long",
-    account_equity=Decimal("20000"),
-    leverage=Decimal("3"),
+    entry_price=Decimal("5050.00"), side="long",
+    account_equity=Decimal("20000"), leverage=Decimal("3"),
     acceptable_risk_pct=Decimal("9"),
 )
+print(f"Stop: ${result.stop_price}  Max loss: ${result.max_loss_dollars}")
 
-print(f"Stop Price: ${result.stop_price}")
-print(f"Max Loss: ${result.max_loss_dollars}")
-print(f"Allowed Move: {result.allowed_adverse_move_pct}%")
+# Futures (risk-first, tick-rounded)
+pos = size_by_percent_stop(
+    symbol="ES", side="long", entry=Decimal("5050"),
+    account_equity=Decimal("25000"), leverage=Decimal("12"),
+    pct_stop=Decimal("0.004"), risk_cash=Decimal("2500"),
+)
+print(f"Qty: {pos.qty}  Stop: {pos.stop_price}  Max loss: ${pos.qty * pos.risk_dollars_per_contract}")
 ```
 
-## 🧪 Testing
+## 🧪 Testing & Code Quality
 
 ```bash
-# Run all tests
-pytest tests/ -v
-
-# Run specific test module
-pytest tests/test_sizing.py -v
-
-# Run with coverage
-pytest --cov=src/stoploss tests/
+pytest tests/ -v                          # All tests (golden + hypothesis property tests)
+pytest tests/ --cov=src/stoploss          # With coverage
+ruff check src/ tests/                    # Lint
+black --check src/ tests/                 # Format check
+mypy src/                                 # Type check
 ```
 
-## 📋 Documentation
+## 📚 Reference Notes
 
--   **[CHANGELOG.md](CHANGELOG.md)** - Version history and updates
--   **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Command reference
+### Taxes (federal only)
+
+-   [IRS Pub 550](https://www.irs.gov/publications/p550) — Investment Income & Expenses
+-   [IRS Form 6781](https://www.irs.gov/forms/about-form-6781) — §1256 Contracts
+-   **60/40 split**: 60% of §1256 gains taxed at LTCG rate, 40% at ordinary rate. Applies to exchange-traded futures (ES/NQ/CL/GC ✓), not stocks/options/forex/crypto.
+-   **Not modeled**: wash sales (IRS §1091), state/local taxes, trader MTM election, deductions. Consult a tax professional.
+
+### Margin Interest
+
+-   `interest = principal × APR × days / 360` (broker-standard 360-day basis, daily accrual)
+-   Up to 3 cascading loans (e.g., Reg T base + portfolio tier + emergency tier)
+-   Brokers peg margin APR to SOFR + spread; the SOFR value shown is a static reference (Oct 2024: ~5.33%) — see [NY Fed](https://www.newyorkfed.org/markets/reference-rates/sofr) for live rates
+
+### Energy Estimation
+
+-   `cost = kW × hours × ¢/kWh`; default ~14¢/kWh US residential average
+-   Source: [EIA Electric Power Monthly, Table 5.3](https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_5_3)
+
+### Assumptions & Limitations
+
+-   Static contract specs (no CME holiday/RTH calendar); no gap modeling beyond user-set slippage
+-   Buying-power cap uses your *declared* leverage; actual broker margin requirements vary
+-   Federal taxes only, per-trade basis; wash sales not tracked
+
+## Roadmap
+
+-   [x] Core math (sizing, P&L, taxes, margin) — risk-first as of 0.3.0
+-   [x] CLI with Typer (percent + ATR paths)
+-   [x] FastAPI REST API
+-   [x] Streamlit dashboard
+-   [x] GitHub Actions CI
+-   [ ] Live EIA/SOFR fetch + caching
+-   [ ] Micro contracts (MES/MNQ/MCL/MGC)
+-   [ ] Full cost stack (P&L, taxes, margin) in the dashboard
 
 ## ⚠️ Disclaimers
 
 -   **Educational Use Only**: This calculator is for planning and educational purposes only
 -   **No Trading Advice**: Not investment or trading advice
 -   **Verification Required**: Always verify calculations before trading
--   **Federal Tax Only**: Calculations include federal tax implied assumption only; consult a human tax professional for your situation
--   **Market Conditions**: Does not account for market gaps or slippage beyond user-specified values
+-   **Federal Tax Only**: Consult a tax professional for your situation
+-   **Market Conditions**: Does not account for gaps or slippage beyond user-specified values
 
 ## 📄 License
 
-See [LICENSE](LICENSE) file
+MIT — see [LICENSE](LICENSE).
 
 ## 🤝 Contributing
 
-Contributions welcome! Please ensure tests pass:
+Contributions welcome! Please ensure tests and quality checks pass:
 
 ```bash
-pytest tests/ -v
-ruff check src/ tests/
-black --check src/ tests/
+pytest tests/ -v && ruff check src/ tests/ && black --check src/ tests/ && mypy src/
 ```
 
-## 📞 Support
-
-For issues, questions, or suggestions, please visit the [GitHub repository](https://github.com/Zombi3h3art/StopLossCalculator).
+Math-affecting changes must be documented in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
 **Built for traders who count every penny.**
 
-🎯 **Calculations:**
-
-1. **Position Size**
-
-    - Gross exposure: $20,000 × 3 = $60,000
-    - Loss per unit: 5050 × 0.004 = 20.2 pts
-    - Qty: floor(60,000 / (5050 × 50)) = floor(0.237) = **can't sustain; size by risk instead**
-
-    **Size by risk:**
-
-    - Risk cash: $500
-    - Qty: (500 - 2) / (50 × 20.2) ≈ 0.49 → **Use 1 contract (or 0.5 MES)**
-    - Stop: 5050 - 20.2 = **5029.8 → round to 5029.75 (nearest 0.25 tick)**
-
-2. **Gross P&L (win scenario, target 5100)**
-
-    - Gross win: 1 × 50 × (5100 - 5050) = **$2,500**
-    - Gross loss: 1 × 50 × (5050 - 5029.75) = **$1,012.50**
-
-3. **Costs**
-
-    - Fees/slip: 2 + 2 = $4
-    - Energy: 0.3 kWh × 14¢ = 4.2¢ = **$0.04**
-    - Margin: 5000 × 0.065 × (3/360) = **$2.71**
-    - Total: **$6.75**
-
-4. **Tax on Win**
-
-    - Gross: $2,500 - $4 = $2,496
-    - Tax: 2496 × (0.60 × 0.15 + 0.40 × 0.24) = 2496 × 0.186 = **$464.66**
-
-5. **Net P&L**
-    - Net win: 2,500 - 4 - 0.04 - 2.71 - 464.66 = **$2,028.59**
-    - Net loss: -(1,012.50 + 4 + 0.04 + 2.71) = **-$1,019.25**
-
-## Tax References
-
--   [IRS Pub 550](https://www.irs.gov/publications/p550) (Investment Income & Expenses)
--   [IRS Form 6781](https://www.irs.gov/forms/about-form-6781) (§1256 Contracts)
--   **60/40 Split**: 60% of gains taxed at LTCG rate, 40% at ordinary ST rate
-
-## Energy Estimation
-
--   **Data**: EIA Table 5.3 (Electric Power Monthly)
--   **Typical US residential**: ~14¢/kWh (2024 average)
--   **Desktop setup**: 0.15–0.35 kW depending on configuration
-
-Reference: https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_5_3
-
-## Margin Interest
-
--   **Basis**: 360-day year (broker standard)
--   **Formula**: interest = principal × APR × (days / 360)
--   **Accrual**: Daily, billed monthly
-
-## SOFR Reference
-
--   **Current rate** (Oct 2024): ~5.33% p.a.
--   **Brokers peg to**: SOFR + spread (e.g., +150 bps = 6.83%)
--   **Source**: Federal Reserve Bank of New York
--   **Link**: https://www.newyorkfed.org/markets/reference-rates/sofr
-
-## Limitations & Assumptions
-
-### Tax Calculation Limitations
-
-1. **Daily Trading Tax Wash Sales**
-
-    - Wash sale rules (IRS Sec 1091) are NOT calculated. In futures, you must manually track wash sales with other positions in the same _contract_ if closed at a loss and re-entered within 30 days.
-    - **Recommendation**: Use tax software (e.g., TurboTax for traders) to detect wash sales across your full portfolio.
-
-2. **No State/Local Income Tax**
-
-    - This calculator includes **US federal taxes only** (Form 6781 for §1256 or ordinary income).
-    - State income taxes (CA, NY, IL, etc.) vary 1–13% and must be added separately based on your state.
-    - Futures may qualify for special treatment in some states (e.g., Illinois has no income tax on §1256 gains).
-
-3. **Section §1256 Futures Only**
-
-    - 60% long-term / 40% short-term split applies ONLY to:
-        - Exchange-traded futures (ES, NQ, CL, GC ✓)
-        - NOT to options, forex, or crypto
-    - Per-trade basis: Each win/loss is segregated 60/40, not netted annually.
-
-4. **No Tax Credits or Deductions**
-    - Does NOT calculate:
-        - Trader status mark-to-market (MTM) election
-        - Home office deduction
-        - Margin interest deduction (partial via Sch B)
-        - Depreciation
-        - Vehicle/equipment costs
-    - These are valuable but require tax professional input.
-
-### Margin Loan Cascading
-
-Up to **3 separate margin loans** are supported, calculated sequentially for 360-day accrual:
-
-#### All 3 loans filled example
-
-```python
-loans = [
-    MarginLoanInput(loan_amount=5000, apr=0.065, days_held=5),   # Loan 1: Reg T (6.5%)
-    MarginLoanInput(loan_amount=3000, apr=0.085, days_held=3),   # Loan 2: Short rebate tier (8.5%)
-    MarginLoanInput(loan_amount=2000, apr=0.120, days_held=1),   # Loan 3: Emergency (12%)
-]
-
-# Total margin interest for 5 days:
-# Loan 1: 5000 × 0.065 × (5/360) = $4.51
-# Loan 2: 3000 × 0.085 × (3/360) = $2.13
-# Loan 3: 2000 × 0.120 × (1/360) = $0.67
-# Total: $7.31
-```
-
-Brokers with cascading tiers:
-
--   **Interactive Brokers**: Reg T (IBKR base), then Portfolio Margin excess
--   **Schwab/E\*TRADE**: Tiered by account size and balance
--   **Tradovate**: Flat rate (no cascade)
-
-### Contract Limits & Assumptions
-
-| Contract | PPV | Tick | Min Stop (points) | RTH Hours      | Margin (Reg T) |
-| -------- | --- | ---- | ----------------- | -------------- | -------------- |
-| ES       | 50  | 0.25 | 2–5               | 9:30–16:00 EST | $500–$1500     |
-| NQ       | 20  | 0.25 | 2–5               | 9:30–16:00 EST | $1000–$3000    |
-| CL       | 100 | 0.01 | 0.5–2.0           | 17:00–16:00 CT | $3000–$5000    |
-| GC       | 100 | 0.10 | 2–5               | 17:00–16:00 NY | $3000–$5000    |
-
-**Assumptions:**
-
--   **No CME holidays** applied (exchange closed).
--   **RTH (Regular Trading Hours) only**. Overnight/weekend sessions not modeled.
--   **Margin requirement** is static (actual requirement varies by broker and market conditions).
--   **No gap risk** over weekends/holidays.
--   **Slippage** is user-provided; actual market impact not calculated.
-
-### SOFR & Margin APR Context
-
-**Fed Funds Effective Rate vs. SOFR:**
-
--   **Fed Funds (Old)**: 2008–2023, manual administered rate
--   **SOFR (Secured Overnight Financing Rate)**: April 2023+, overnight repo-based rate
-    -   Less volatile, more transparent than Fed Funds
-    -   Brokers lag SOFR by 30–60 bps, then add spread
-
-**Example (as of Oct 2024):**
-
-```text
-SOFR (overnight): 5.33% p.a.
-Broker markup: +150 bps = 6.83% APR (typical retail)
-Interactive Brokers: SOFR + 25 bps = 5.58% (tightest)
-Schwab: SOFR + 100 bps = 6.33%
-```
-
----
-
-## Running the UI
-
-### Streamlit Web App
-
-```bash
-# Install dependencies
-pip install streamlit pydantic fastapi
-
-# Run the interactive calculator
-streamlit run ui_app.py
-```
-
-Open [`http://localhost:8501`](http://localhost:8501) in your browser. Two-panel layout:
-
--   **Left**: Position sizing (symbol, entry, stop loss %)
--   **Right**: P&L scenarios (win/loss analysis, taxes, margin costs)
--   **Export**: JSON or CSV for record-keeping
-
----
-
-## Development
-
-### Testing
-
-```bash
-pytest tests/ -v
-```
-
-With coverage:
-
-```bash
-pytest tests/ --cov=stoploss --cov-report=html
-```
-
-### Code Quality
-
-```bash
-ruff check src/
-black --check src/
-mypy src/
-```
-
-Auto-fix:
-
-```bash
-ruff check --fix src/
-black src/
-```
-
-### Build & Release
-
-```bash
-# Build wheel
-python -m build
-
-# Release to PyPI (requires token)
-twine upload dist/*
-```
-
-## Roadmap
-
--   [x] Core math (sizing, P&L, taxes, margin)
--   [x] CLI with Typer
--   [ ] FastAPI REST API
--   [ ] Streamlit UI
--   [ ] Live EIA/SOFR fetch + caching
--   [ ] GitHub Actions CI/CD
--   [ ] Comprehensive test suite (>90% coverage)
--   [ ] Math whitepaper with derivations
--   [ ] Contract futures data for CME holidays/RTH
-
-## License
-
-MIT
-
-## References
-
 **Scripture anchors (KJV):**
 
 -   Luke 14:28 — "For which of you, intending to build a tower, sitteth not down first, and counteth the cost, whether he have sufficient to finish it?"
 -   Proverbs 11:1 — "A false balance is abomination to the LORD: but a just weight is his delight."
--   Ecclesiastes 3:1 — "To every thing there is a season, and a time to every purpose under the heaven."
-
----
-
-**Disclaimer:** This calculator is for educational and planning purposes. It does not constitute investment advice. Always consult a tax professional and risk manager before trading. Past performance does not guarantee future results.

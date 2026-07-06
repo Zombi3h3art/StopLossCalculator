@@ -29,7 +29,7 @@ st.markdown(
         --text: #2D3748;
         --text-dark: #1A202C;
     }
-    
+
     /* Typography */
     h1 {
         font-family: 'Source Serif 4', Georgia, serif;
@@ -38,7 +38,7 @@ st.markdown(
         font-size: 2rem;
         margin-bottom: 1rem;
     }
-    
+
     h3 {
         font-family: 'Source Sans 3', sans-serif;
         font-weight: 600;
@@ -46,11 +46,11 @@ st.markdown(
         font-size: 1.1rem;
         margin-bottom: 0.75rem;
     }
-    
+
     .stMetric {
         text-align: center;
     }
-    
+
     /* Trade Summary Card - Flat bordered design */
     .trade-summary {
         background-color: var(--neutral-light);
@@ -59,7 +59,7 @@ st.markdown(
         border-radius: 4px;
         color: #2C3E50;
     }
-    
+
     .summary-header {
         font-family: 'Source Sans 3', sans-serif;
         font-size: 0.75rem;
@@ -71,40 +71,40 @@ st.markdown(
         padding-bottom: 0.5rem;
         border-bottom: 1px solid var(--secondary);
     }
-    
+
     .summary-row {
         display: flex;
         justify-content: space-between;
         margin: 0.6rem 0;
         font-size: 0.95rem;
     }
-    
+
     .summary-label {
         color: var(--secondary);
         font-weight: 500;
     }
-    
+
     .summary-value {
         font-weight: 600;
         color: #2C3E50;
     }
-    
+
     .summary-divider {
         border-top: 1px solid var(--secondary);
         margin: 0.75rem 0;
         padding-top: 0.75rem;
     }
-    
+
     .summary-highlight {
         font-weight: 600;
         color: var(--primary);
     }
-    
+
     .summary-loss {
         color: var(--text-dark);
         font-weight: 600;
     }
-    
+
     /* Stop Price Highlight - Accent color */
     .stop-price-highlight {
         background-color: var(--neutral-light);
@@ -118,7 +118,7 @@ st.markdown(
         text-align: center;
         color: var(--primary);
     }
-    
+
     .stop-label {
         font-size: 0.7rem;
         font-weight: 600;
@@ -127,7 +127,7 @@ st.markdown(
         color: var(--accent);
         margin-bottom: 0.5rem;
     }
-    
+
     /* Input Container - Bordered, no fill */
     .input-container {
         background-color: transparent;
@@ -136,7 +136,7 @@ st.markdown(
         border-radius: 4px;
         margin-bottom: 0.5rem;
     }
-    
+
     /* Risk Summary Bar */
     .risk-bar {
         background-color: transparent;
@@ -145,16 +145,16 @@ st.markdown(
         border-radius: 4px;
         font-family: 'Source Sans 3', sans-serif;
     }
-    
+
     .risk-bar strong {
         color: var(--primary);
     }
-    
+
     .risk-bar .risk-amount {
         color: var(--text-dark);
         font-weight: 600;
     }
-    
+
     /* Empty State */
     .empty-state {
         background-color: var(--neutral-light);
@@ -163,17 +163,17 @@ st.markdown(
         border-radius: 4px;
         text-align: center;
     }
-    
+
     .empty-state h3 {
         color: var(--primary);
         margin-bottom: 0.5rem;
     }
-    
+
     .empty-state p {
         color: var(--secondary);
         font-size: 0.9rem;
     }
-    
+
     /* Direction Labels - Non-color dependent with accessibility */
     .direction-long {
         color: var(--primary);
@@ -181,26 +181,26 @@ st.markdown(
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
-    
+
     .direction-long::before {
         content: "▲ ";
         aria-hidden: true;
         font-size: 0.8em;
     }
-    
+
     .direction-short {
         color: var(--text-dark);
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
-    
+
     .direction-short::before {
         content: "▼ ";
         aria-hidden: true;
         font-size: 0.8em;
     }
-    
+
     /* Screen reader only text */
     .sr-only {
         position: absolute;
@@ -213,7 +213,7 @@ st.markdown(
         white-space: nowrap;
         border: 0;
     }
-    
+
     /* Section Labels */
     .section-label {
         font-size: 0.7rem;
@@ -223,14 +223,14 @@ st.markdown(
         color: var(--secondary);
         margin-bottom: 0.5rem;
     }
-    
+
     /* Footer */
     .footer {
         color: var(--secondary);
         font-size: 0.85rem;
         line-height: 1.6;
     }
-    
+
     .footer strong {
         color: var(--primary);
     }
@@ -362,13 +362,14 @@ with right_col:
             notional = result.notional_exposure
             qty = result.quantity
 
-            formula_desc = f"Stop = Entry × (1 {'+ ' if side == 'short' else '- '}{allowed_move_pct / 100:.6f})"
+            formula_desc = f"Stop = Entry * (1 {'+ ' if side == 'short' else '- '}{allowed_move_pct / 100:.6f})"
 
         else:  # Futures Mode
-            # Convert Risk % of Equity to Stop Distance %
             # Stop Distance % = (Risk % of Equity) / Leverage
             # e.g. 1% risk / 10x lev = 0.1% stop distance
             pct_stop_decimal = (Decimal(str(risk_pct)) / Decimal("100")) / Decimal(str(leverage))
+            # Risk budget in dollars: the most this trade is allowed to lose
+            risk_budget = Decimal(str(trade_amount)) * Decimal(str(risk_pct)) / Decimal("100")
 
             try:
                 fs_result = size_by_percent_stop(
@@ -378,6 +379,7 @@ with right_col:
                     account_equity=Decimal(str(trade_amount)),
                     leverage=Decimal(str(leverage)),
                     pct_stop=pct_stop_decimal,
+                    risk_cash=risk_budget,
                 )
 
                 stop_price = fs_result.stop_price
@@ -385,13 +387,23 @@ with right_col:
                 dist = abs(fs_result.entry - fs_result.stop_price)
                 allowed_move_pct = (dist / fs_result.entry) * 100
 
-                max_loss = fs_result.risk_cash  # This includes fees if any, but here 0
-                notional = fs_result.gross_exposure
                 qty = fs_result.qty
+                # Honest numbers: what the position actually risks and controls
+                max_loss = Decimal(qty) * fs_result.risk_dollars_per_contract
+                notional = Decimal(qty) * fs_result.entry * contract.point_value
 
                 formula_desc = (
-                    "Stop rounded to nearest tick. Qty = floor(Exposure / (Entry × PointValue))"
+                    "Risk-first sizing: Qty = min(floor(risk_budget / risk_per_contract), "
+                    "floor(equity * leverage / (entry * point_value))). "
+                    "Stop rounded to nearest tick."
                 )
+
+                if fs_result.capped_by_buying_power:
+                    st.info(
+                        f"**Buying-power cap**: equity x leverage affords "
+                        f"{fs_result.buying_power_qty_cap} contract(s); the risk budget "
+                        f"alone would allow more. Max loss shown reflects the capped size."
+                    )
 
             except ValueError as e:
                 st.error(f"Calculation Error: {e}")

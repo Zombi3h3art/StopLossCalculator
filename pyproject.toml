@@ -2,9 +2,12 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/stoploss"]
+
 [project]
 name = "stop-loss-calculator"
-version = "0.1.0"
+version = "0.3.0"
 description = "Precision stop-loss calculator for futures trading with tax, energy, and margin accounting"
 readme = "README.md"
 license = {text = "MIT"}

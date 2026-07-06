@@ -5,6 +5,7 @@ from decimal import Decimal
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.stoploss import __version__
 from src.stoploss.cashflow import calculate_pnl
 from src.stoploss.energy import estimate_energy_cost
 from src.stoploss.rates import fetch_sofr_reference
@@ -14,7 +15,7 @@ from src.stoploss.sizing import size_by_percent_stop
 app = FastAPI(
     title="Stop Loss Net Edge Calculator API",
     description="Precision financial calculator for futures trading",
-    version="0.1.0",
+    version=__version__,
 )
 
 # Enable CORS for web UI
@@ -30,16 +31,18 @@ app.add_middleware(
 @app.get("/health", tags=["Health"])
 async def health_check() -> dict[str, str]:
     """Health check endpoint."""
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": __version__}
 
 
 @app.post("/size", tags=["Sizing"], response_model=ApiResponse)
 async def calculate_size(input_data: SizingInput) -> ApiResponse:
     """
-    Calculate position size and stop price.
+    Calculate position size and stop price (risk-first).
 
     Accepts a SizingInput with symbol, side, entry, account equity, leverage,
-    and percent stop. Returns qty and stop price rounded to contract tick.
+    percent stop, and a risk budget (`risk_cash`, the maximum acceptable loss
+    in dollars). Returns qty = min(risk-based qty, buying-power cap) and the
+    stop price rounded to the contract tick.
 
     **Request Example:**
     ```json
@@ -47,9 +50,12 @@ async def calculate_size(input_data: SizingInput) -> ApiResponse:
         "symbol": "ES",
         "side": "long",
         "entry": "5050.00",
-        "account_equity": "20000.00",
-        "leverage": "3.0",
-        "pct_stop": "0.004"
+        "account_equity": "25000.00",
+        "leverage": "12",
+        "pct_stop": "0.004",
+        "risk_cash": "2500.00",
+        "fees_open": "2.00",
+        "fees_close": "2.00"
     }
     ```
 
@@ -58,30 +64,38 @@ async def calculate_size(input_data: SizingInput) -> ApiResponse:
     {
         "success": true,
         "data": {
-            risk_per_unit=result.risk_per_unit,
-            risk_per_unit_actual=result.risk_per_unit_actual,
-            risk_dollars_per_contract=result.risk_dollars_per_contract,
+            "symbol": "ES",
             "side": "long",
-            risk_cash=result.risk_cash,
-            fees_open=result.fees_open,
-            fees_close=result.fees_close,
-            slippage_open=result.slippage_open,
             "qty": 1,
             "entry": "5050.00",
             "stop_price": "5029.75",
-            "risk_per_unit": "20.20",
-            "gross_exposure": "60000.00"
+            "risk_per_unit": "20.2000",
+            "risk_per_unit_actual": "20.2500",
+            "risk_dollars_per_contract": "1012.50",
+            "gross_exposure": "300000.00",
+            "risk_cash": "2496.00",
+            "fees_open": "2.00",
+            "fees_close": "2.00",
+            "slippage_open": "0",
+            "method": "percent_stop",
+            "buying_power_qty_cap": 1,
+            "capped_by_buying_power": true
         }
     }
     ```
     """
-    try:
-        if input_data.pct_stop is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="pct_stop is required for percent-stop sizing",
-            )
+    if input_data.pct_stop is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="pct_stop is required for percent-stop sizing",
+        )
+    if input_data.risk_cash is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="risk_cash (risk budget in dollars) is required for percent-stop sizing",
+        )
 
+    try:
         result = size_by_percent_stop(
             symbol=input_data.symbol,
             side=input_data.side,
@@ -89,6 +103,7 @@ async def calculate_size(input_data: SizingInput) -> ApiResponse:
             account_equity=Decimal(str(input_data.account_equity)),
             leverage=Decimal(str(input_data.leverage)),
             pct_stop=Decimal(str(input_data.pct_stop)),
+            risk_cash=Decimal(str(input_data.risk_cash)),
             fees_open=Decimal(str(input_data.fees_open)),
             fees_close=Decimal(str(input_data.fees_close)),
         )
@@ -108,6 +123,8 @@ async def calculate_size(input_data: SizingInput) -> ApiResponse:
             fees_close=result.fees_close,
             slippage_open=result.slippage_open,
             method=result.method,
+            buying_power_qty_cap=result.buying_power_qty_cap,
+            capped_by_buying_power=result.capped_by_buying_power,
         )
 
         return ApiResponse(success=True, data=output)

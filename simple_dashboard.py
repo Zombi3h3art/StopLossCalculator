@@ -1,5 +1,6 @@
 """Stop Loss Calculator Dashboard - Two-column layout for instant results."""
 
+import json
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -9,7 +10,10 @@ import streamlit as st
 # Allow `streamlit run simple_dashboard.py` from a source checkout without installing
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
+from stoploss.cashflow import calculate_pnl
 from stoploss.contracts import get_contract
+from stoploss.energy import ENERGY_PROFILES
+from stoploss.rates import MarginLoan
 from stoploss.simple_sizing import calculate_stop_loss
 from stoploss.sizing import size_by_percent_stop
 
@@ -252,7 +256,11 @@ mode = st.radio(
     ["Simple / Generic", "Futures (Precision)"],
     horizontal=True,
     help="Choose 'Futures' for ES/NQ/CL/GC with tick rounding.",
+    key="mode",
 )
+
+# Futures sizing result, shared with the P&L scenario section below
+fs_result = None
 
 # Two-column layout
 left_col, right_col = st.columns([1, 1], gap="large")
@@ -265,7 +273,7 @@ with left_col:
     symbol = "ES"  # Default
 
     if mode == "Futures (Precision)":
-        symbol = st.selectbox("Contract", ["ES", "NQ", "CL", "GC"])
+        symbol = st.selectbox("Contract", ["ES", "NQ", "CL", "GC"], key="symbol")
 
         contract = get_contract(symbol)
         st.caption(f"Tick: {contract.min_tick} | Point Value: ${contract.point_value}")
@@ -280,9 +288,12 @@ with left_col:
     ticker_price = st.number_input(
         "Entry Price",
         min_value=0.0001,
+        value=None,
         step=step_value,
         format="%.4f",
+        placeholder="e.g. 5050.00",
         help="Current price of the asset",
+        key="entry",
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -293,6 +304,7 @@ with left_col:
             options=["long", "short"],
             selection_mode="single",
             format_func=lambda x: "Long" if x == "long" else "Short",
+            key="direction",
         )
     except AttributeError:
         # Fallback for older Streamlit versions
@@ -301,6 +313,7 @@ with left_col:
             options=["long", "short"],
             format_func=lambda x: "Long" if x == "long" else "Short",
             horizontal=True,
+            key="direction",
         )
 
     side = direction if direction else "long"
@@ -312,6 +325,7 @@ with left_col:
         step=100.0,
         value=10000.0 if mode == "Futures (Precision)" else 100.0,
         help="Total cash available for this trade setup",
+        key="equity",
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -323,6 +337,7 @@ with left_col:
         step=1,
         value=10,
         help="How much you're amplifying (10x, 100x, etc)",
+        key="leverage",
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -334,6 +349,7 @@ with left_col:
         value=1.0 if mode == "Futures (Precision)" else 9.0,
         step=0.1,
         help="Max % of trade amount to risk",
+        key="risk_pct",
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -350,8 +366,8 @@ with left_col:
 
 # RIGHT COLUMN: RESULTS
 with right_col:
-    # Calculate
-    if ticker_price > 0 and trade_amount > 0 and leverage > 0 and risk_pct > 0:
+    # Calculate (entry is None until the trader types a price)
+    if ticker_price and trade_amount > 0 and leverage > 0 and risk_pct > 0:
         if mode == "Simple / Generic":
             result = calculate_stop_loss(
                 entry_price=ticker_price,
@@ -500,6 +516,236 @@ with right_col:
             """,
             unsafe_allow_html=True,
         )
+
+# P&L SCENARIO & COSTS (futures mode, full cost stack)
+if mode == "Futures (Precision)" and fs_result is not None:
+    st.markdown("---")
+    st.markdown("### 📈 P&L Scenario & Costs")
+    st.caption(
+        f"Position from above: {fs_result.qty} x {symbol} @ {fs_result.entry}, "
+        f"stop {fs_result.stop_price}. Add a target and costs for the full net picture."
+    )
+
+    pnl_in_col, pnl_out_col = st.columns([1, 1], gap="large")
+
+    with pnl_in_col:
+        target_price = st.number_input(
+            "Target Price (win scenario)",
+            min_value=0.0001,
+            value=None,
+            step=step_value,
+            format="%.4f",
+            placeholder="e.g. 5100.00",
+            help="Exit price if the trade goes your way",
+            key="target",
+        )
+
+        fee_col1, fee_col2 = st.columns(2)
+        with fee_col1:
+            fees_open = st.number_input(
+                "Fees open ($)", min_value=0.0, value=0.0, step=0.5, key="fees_open"
+            )
+            slip_open = st.number_input(
+                "Slippage open ($)", min_value=0.0, value=0.0, step=0.5, key="slip_open"
+            )
+        with fee_col2:
+            fees_close = st.number_input(
+                "Fees close ($)", min_value=0.0, value=0.0, step=0.5, key="fees_close"
+            )
+            slip_close = st.number_input(
+                "Slippage close ($)", min_value=0.0, value=0.0, step=0.5, key="slip_close"
+            )
+
+        tax_mode_label = st.selectbox(
+            "Tax mode (US federal)",
+            ["§1256 60/40 (futures)", "Short-term ordinary"],
+            help="Exchange-traded futures normally qualify for the §1256 60/40 split",
+            key="tax_mode",
+        )
+        rate_col1, rate_col2 = st.columns(2)
+        with rate_col1:
+            st_rate_pct = st.number_input(
+                "Short-term rate (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=24.0,
+                step=1.0,
+                key="st_rate",
+            )
+        with rate_col2:
+            lt_rate_pct = st.number_input(
+                "Long-term rate (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=15.0,
+                step=1.0,
+                key="lt_rate",
+            )
+
+        with st.expander("Energy & margin loans (optional)"):
+            energy_profile = st.selectbox(
+                "Energy profile",
+                ["None", *ENERGY_PROFILES],
+                format_func=lambda k: (
+                    "None" if k == "None" else f"{k} — {ENERGY_PROFILES[k]['description']}"
+                ),
+                key="energy_profile",
+            )
+            session_hours = st.number_input(
+                "Session hours",
+                min_value=0.0,
+                max_value=48.0,
+                value=0.0,
+                step=0.5,
+                key="energy_hours",
+            )
+
+            st.markdown(
+                '<div class="section-label">Margin loans (up to 3)</div>',
+                unsafe_allow_html=True,
+            )
+            margin_loans = []
+            for i in (1, 2, 3):
+                loan_c1, loan_c2, loan_c3 = st.columns(3)
+                loan_amt = loan_c1.number_input(
+                    f"Loan {i} amount ($)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=500.0,
+                    key=f"loan{i}_amt",
+                )
+                loan_apr = loan_c2.number_input(
+                    f"Loan {i} APR (%)",
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=0.0,
+                    step=0.5,
+                    key=f"loan{i}_apr",
+                )
+                loan_days = loan_c3.number_input(
+                    f"Loan {i} days",
+                    min_value=0,
+                    max_value=365,
+                    value=1,
+                    step=1,
+                    key=f"loan{i}_days",
+                )
+                if loan_amt > 0 and loan_apr > 0:
+                    margin_loans.append(
+                        MarginLoan(
+                            loan_amount=Decimal(str(loan_amt)),
+                            apr=Decimal(str(loan_apr)) / Decimal("100"),
+                            days_held=int(loan_days),
+                        )
+                    )
+
+    with pnl_out_col:
+        if target_price is None:
+            st.markdown(
+                """
+                <div class="empty-state">
+                <h3>🎯 Set a Target</h3>
+                <p>Enter a target price to see net P&L after fees, slippage, taxes,
+                energy, and margin interest</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        elif (side == "long" and target_price <= float(fs_result.entry)) or (
+            side == "short" and target_price >= float(fs_result.entry)
+        ):
+            st.warning(
+                "Target must be on the winning side of entry " "(above for long, below for short)."
+            )
+        else:
+            if energy_profile != "None" and session_hours > 0:
+                energy_kwh = ENERGY_PROFILES[energy_profile]["power_kw"] * Decimal(
+                    str(session_hours)
+                )
+            else:
+                energy_kwh = Decimal("0")
+
+            try:
+                pnl = calculate_pnl(
+                    symbol=symbol,
+                    side=side,
+                    qty=fs_result.qty,
+                    entry=fs_result.entry,
+                    target=Decimal(str(target_price)),
+                    stop=fs_result.stop_price,
+                    fees_open=Decimal(str(fees_open)),
+                    fees_close=Decimal(str(fees_close)),
+                    slippage_open=Decimal(str(slip_open)),
+                    slippage_close=Decimal(str(slip_close)),
+                    energy_kwh=energy_kwh,
+                    margin_loans=margin_loans,
+                    tax_mode=(
+                        "section_1256"
+                        if tax_mode_label.startswith("§1256")
+                        else "short_term_ordinary"
+                    ),
+                    st_rate=Decimal(str(st_rate_pct)),
+                    lt_rate=Decimal(str(lt_rate_pct)),
+                )
+            except ValueError as e:
+                st.error(f"P&L Error: {e}")
+            else:
+                win_col, loss_col = st.columns(2)
+                with win_col:
+                    st.metric("Gross Win", f"${pnl.gross_win:,.2f}")
+                    st.metric("Net Win (after costs + tax)", f"${pnl.net_win_scenario:,.2f}")
+                with loss_col:
+                    st.metric("Gross Loss", f"-${pnl.gross_loss:,.2f}")
+                    st.metric("Net Loss (after costs)", f"${pnl.net_loss_scenario:,.2f}")
+
+                if pnl.net_loss_scenario != 0:
+                    net_rr = abs(pnl.net_win_scenario / pnl.net_loss_scenario)
+                    st.caption(f"Net risk/reward: {net_rr:.2f} : 1")
+
+                st.markdown(
+                    '<div class="section-label">Cost Breakdown</div>',
+                    unsafe_allow_html=True,
+                )
+                st.dataframe(
+                    [
+                        {"Cost": label.replace("_", " "), "Amount ($)": f"{value:,.2f}"}
+                        for label, value in pnl.breakdown.items()
+                    ],
+                    hide_index=True,
+                    width="stretch",
+                )
+
+                scenario = {
+                    "symbol": symbol,
+                    "side": side,
+                    "qty": fs_result.qty,
+                    "entry": str(fs_result.entry),
+                    "target": str(target_price),
+                    "stop": str(fs_result.stop_price),
+                    "gross_win": str(pnl.gross_win),
+                    "gross_loss": str(pnl.gross_loss),
+                    "net_win": str(pnl.net_win_scenario),
+                    "net_loss": str(pnl.net_loss_scenario),
+                    "breakdown": {k: str(v) for k, v in pnl.breakdown.items()},
+                }
+                dl_col1, dl_col2 = st.columns(2)
+                dl_col1.download_button(
+                    "⬇ Download JSON",
+                    json.dumps(scenario, indent=2),
+                    file_name=f"{symbol}_{side}_scenario.json",
+                    mime="application/json",
+                    key="dl_json",
+                )
+                csv_rows = ["field,value"]
+                csv_rows += [f"{k},{v}" for k, v in scenario.items() if k != "breakdown"]
+                csv_rows += [f"cost_{k},{v}" for k, v in scenario["breakdown"].items()]
+                dl_col2.download_button(
+                    "⬇ Download CSV",
+                    "\n".join(csv_rows),
+                    file_name=f"{symbol}_{side}_scenario.csv",
+                    mime="text/csv",
+                    key="dl_csv",
+                )
 
 # FOOTER
 st.markdown("---")

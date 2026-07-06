@@ -1,0 +1,7 @@
+# Light-first theme per DESIGN.md (monochrome navy + ocean-blue accent)
+[theme]
+base = "light"
+primaryColor = "#3182CE"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7FAFC"
+textColor = "#2D3748"

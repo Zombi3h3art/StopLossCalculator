@@ -130,8 +130,7 @@ dmypy.json
 Thumbs.db
 desktop.ini
 
-# Streamlit
-.streamlit/
+# Streamlit (theme config IS committed; only secrets stay local)
 .streamlit/secrets.toml
 
 # Project specific

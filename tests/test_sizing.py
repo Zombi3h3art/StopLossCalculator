@@ -12,7 +12,7 @@ semantics decided 2026-07-06:
 from decimal import Decimal
 
 import pytest
-from hypothesis import assume, given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from stoploss.contracts import get_contract
@@ -206,6 +206,7 @@ class TestPercentStopValidation:
 class TestPercentStopProperties:
     """Property tests: invariants that must hold for every successful sizing."""
 
+    @settings(deadline=None)  # avoid deadline flakes on loaded CI runners
     @given(
         symbol=st.sampled_from(["ES", "NQ", "CL", "GC"]),
         side=st.sampled_from(["long", "short"]),
@@ -228,7 +229,8 @@ class TestPercentStopProperties:
                 risk_cash=risk_cash,
             )
         except ValueError:
-            assume(False)  # unsizeable draw; property applies to successful sizings
+            # Unsizeable draw: raising a *clean* ValueError is the contract.
+            # Anything else (e.g. DivisionByZero) must fail the property.
             return
 
         # Stop is a valid tick and on the correct side of entry

@@ -1,12 +1,21 @@
 """Stop Loss Calculator Dashboard - Two-column layout for instant results."""
 
+import json
+import sys
 from decimal import Decimal
+from pathlib import Path
 
 import streamlit as st
 
-from src.stoploss.contracts import get_contract
-from src.stoploss.simple_sizing import calculate_stop_loss
-from src.stoploss.sizing import size_by_percent_stop
+# Allow `streamlit run simple_dashboard.py` from a source checkout without installing
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+from stoploss.cashflow import calculate_pnl
+from stoploss.contracts import get_contract
+from stoploss.energy import ENERGY_PROFILES
+from stoploss.rates import MarginLoan, fetch_sofr_reference
+from stoploss.simple_sizing import calculate_stop_loss
+from stoploss.sizing import size_by_percent_stop
 
 # See CSS custom properties below for color definitions
 
@@ -29,7 +38,7 @@ st.markdown(
         --text: #2D3748;
         --text-dark: #1A202C;
     }
-    
+
     /* Typography */
     h1 {
         font-family: 'Source Serif 4', Georgia, serif;
@@ -38,7 +47,7 @@ st.markdown(
         font-size: 2rem;
         margin-bottom: 1rem;
     }
-    
+
     h3 {
         font-family: 'Source Sans 3', sans-serif;
         font-weight: 600;
@@ -46,11 +55,11 @@ st.markdown(
         font-size: 1.1rem;
         margin-bottom: 0.75rem;
     }
-    
+
     .stMetric {
         text-align: center;
     }
-    
+
     /* Trade Summary Card - Flat bordered design */
     .trade-summary {
         background-color: var(--neutral-light);
@@ -59,7 +68,7 @@ st.markdown(
         border-radius: 4px;
         color: #2C3E50;
     }
-    
+
     .summary-header {
         font-family: 'Source Sans 3', sans-serif;
         font-size: 0.75rem;
@@ -71,40 +80,40 @@ st.markdown(
         padding-bottom: 0.5rem;
         border-bottom: 1px solid var(--secondary);
     }
-    
+
     .summary-row {
         display: flex;
         justify-content: space-between;
         margin: 0.6rem 0;
         font-size: 0.95rem;
     }
-    
+
     .summary-label {
         color: var(--secondary);
         font-weight: 500;
     }
-    
+
     .summary-value {
         font-weight: 600;
         color: #2C3E50;
     }
-    
+
     .summary-divider {
         border-top: 1px solid var(--secondary);
         margin: 0.75rem 0;
         padding-top: 0.75rem;
     }
-    
+
     .summary-highlight {
         font-weight: 600;
         color: var(--primary);
     }
-    
+
     .summary-loss {
         color: var(--text-dark);
         font-weight: 600;
     }
-    
+
     /* Stop Price Highlight - Accent color */
     .stop-price-highlight {
         background-color: var(--neutral-light);
@@ -118,7 +127,7 @@ st.markdown(
         text-align: center;
         color: var(--primary);
     }
-    
+
     .stop-label {
         font-size: 0.7rem;
         font-weight: 600;
@@ -127,7 +136,7 @@ st.markdown(
         color: var(--accent);
         margin-bottom: 0.5rem;
     }
-    
+
     /* Input Container - Bordered, no fill */
     .input-container {
         background-color: transparent;
@@ -136,7 +145,7 @@ st.markdown(
         border-radius: 4px;
         margin-bottom: 0.5rem;
     }
-    
+
     /* Risk Summary Bar */
     .risk-bar {
         background-color: transparent;
@@ -145,16 +154,16 @@ st.markdown(
         border-radius: 4px;
         font-family: 'Source Sans 3', sans-serif;
     }
-    
+
     .risk-bar strong {
         color: var(--primary);
     }
-    
+
     .risk-bar .risk-amount {
         color: var(--text-dark);
         font-weight: 600;
     }
-    
+
     /* Empty State */
     .empty-state {
         background-color: var(--neutral-light);
@@ -163,17 +172,17 @@ st.markdown(
         border-radius: 4px;
         text-align: center;
     }
-    
+
     .empty-state h3 {
         color: var(--primary);
         margin-bottom: 0.5rem;
     }
-    
+
     .empty-state p {
         color: var(--secondary);
         font-size: 0.9rem;
     }
-    
+
     /* Direction Labels - Non-color dependent with accessibility */
     .direction-long {
         color: var(--primary);
@@ -181,26 +190,24 @@ st.markdown(
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
-    
+
     .direction-long::before {
         content: "▲ ";
-        aria-hidden: true;
         font-size: 0.8em;
     }
-    
+
     .direction-short {
         color: var(--text-dark);
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
-    
+
     .direction-short::before {
         content: "▼ ";
-        aria-hidden: true;
         font-size: 0.8em;
     }
-    
+
     /* Screen reader only text */
     .sr-only {
         position: absolute;
@@ -213,7 +220,7 @@ st.markdown(
         white-space: nowrap;
         border: 0;
     }
-    
+
     /* Section Labels */
     .section-label {
         font-size: 0.7rem;
@@ -223,14 +230,14 @@ st.markdown(
         color: var(--secondary);
         margin-bottom: 0.5rem;
     }
-    
+
     /* Footer */
     .footer {
         color: var(--secondary);
         font-size: 0.85rem;
         line-height: 1.6;
     }
-    
+
     .footer strong {
         color: var(--primary);
     }
@@ -247,7 +254,11 @@ mode = st.radio(
     ["Simple / Generic", "Futures (Precision)"],
     horizontal=True,
     help="Choose 'Futures' for ES/NQ/CL/GC with tick rounding.",
+    key="mode",
 )
+
+# Futures sizing result, shared with the P&L scenario section below
+fs_result = None
 
 # Two-column layout
 left_col, right_col = st.columns([1, 1], gap="large")
@@ -260,7 +271,12 @@ with left_col:
     symbol = "ES"  # Default
 
     if mode == "Futures (Precision)":
-        symbol = st.selectbox("Contract", ["ES", "NQ", "CL", "GC"])
+        symbol = st.selectbox(
+            "Contract",
+            ["ES", "NQ", "CL", "GC", "MES", "MNQ", "MCL", "MGC"],
+            help="M-prefixed micros are 1/10 the size — ideal for smaller accounts",
+            key="symbol",
+        )
 
         contract = get_contract(symbol)
         st.caption(f"Tick: {contract.min_tick} | Point Value: ${contract.point_value}")
@@ -275,28 +291,23 @@ with left_col:
     ticker_price = st.number_input(
         "Entry Price",
         min_value=0.0001,
+        value=None,
         step=step_value,
         format="%.4f",
+        placeholder="e.g. 5050.00",
         help="Current price of the asset",
+        key="entry",
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Direction - clean labels
-    try:
-        direction = st.segmented_control(
-            "Direction",
-            options=["long", "short"],
-            selection_mode="single",
-            format_func=lambda x: "Long" if x == "long" else "Short",
-        )
-    except AttributeError:
-        # Fallback for older Streamlit versions
-        direction = st.radio(
-            "Direction",
-            options=["long", "short"],
-            format_func=lambda x: "Long" if x == "long" else "Short",
-            horizontal=True,
-        )
+    # Direction - clean labels (segmented_control needs streamlit>=1.40, see pyproject)
+    direction = st.segmented_control(
+        "Direction",
+        options=["long", "short"],
+        selection_mode="single",
+        format_func=lambda x: "Long" if x == "long" else "Short",
+        key="direction",
+    )
 
     side = direction if direction else "long"
 
@@ -307,6 +318,7 @@ with left_col:
         step=100.0,
         value=10000.0 if mode == "Futures (Precision)" else 100.0,
         help="Total cash available for this trade setup",
+        key="equity",
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -318,6 +330,7 @@ with left_col:
         step=1,
         value=10,
         help="How much you're amplifying (10x, 100x, etc)",
+        key="leverage",
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -329,6 +342,7 @@ with left_col:
         value=1.0 if mode == "Futures (Precision)" else 9.0,
         step=0.1,
         help="Max % of trade amount to risk",
+        key="risk_pct",
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -345,8 +359,8 @@ with left_col:
 
 # RIGHT COLUMN: RESULTS
 with right_col:
-    # Calculate
-    if ticker_price > 0 and trade_amount > 0 and leverage > 0 and risk_pct > 0:
+    # Calculate (entry is None until the trader types a price)
+    if ticker_price and trade_amount > 0 and leverage > 0 and risk_pct > 0:
         if mode == "Simple / Generic":
             result = calculate_stop_loss(
                 entry_price=ticker_price,
@@ -362,13 +376,14 @@ with right_col:
             notional = result.notional_exposure
             qty = result.quantity
 
-            formula_desc = f"Stop = Entry × (1 {'+ ' if side == 'short' else '- '}{allowed_move_pct / 100:.6f})"
+            formula_desc = f"Stop = Entry * (1 {'+ ' if side == 'short' else '- '}{allowed_move_pct / 100:.6f})"
 
         else:  # Futures Mode
-            # Convert Risk % of Equity to Stop Distance %
             # Stop Distance % = (Risk % of Equity) / Leverage
             # e.g. 1% risk / 10x lev = 0.1% stop distance
             pct_stop_decimal = (Decimal(str(risk_pct)) / Decimal("100")) / Decimal(str(leverage))
+            # Risk budget in dollars: the most this trade is allowed to lose
+            risk_budget = Decimal(str(trade_amount)) * Decimal(str(risk_pct)) / Decimal("100")
 
             try:
                 fs_result = size_by_percent_stop(
@@ -378,6 +393,7 @@ with right_col:
                     account_equity=Decimal(str(trade_amount)),
                     leverage=Decimal(str(leverage)),
                     pct_stop=pct_stop_decimal,
+                    risk_cash=risk_budget,
                 )
 
                 stop_price = fs_result.stop_price
@@ -385,13 +401,23 @@ with right_col:
                 dist = abs(fs_result.entry - fs_result.stop_price)
                 allowed_move_pct = (dist / fs_result.entry) * 100
 
-                max_loss = fs_result.risk_cash  # This includes fees if any, but here 0
-                notional = fs_result.gross_exposure
                 qty = fs_result.qty
+                # Honest numbers: what the position actually risks and controls
+                max_loss = Decimal(qty) * fs_result.risk_dollars_per_contract
+                notional = Decimal(qty) * fs_result.entry * contract.point_value
 
                 formula_desc = (
-                    "Stop rounded to nearest tick. Qty = floor(Exposure / (Entry × PointValue))"
+                    "Risk-first sizing: Qty = min(floor(risk_budget / risk_per_contract), "
+                    "floor(equity * leverage / (entry * point_value))). "
+                    "Stop rounded to nearest tick."
                 )
+
+                if fs_result.capped_by_buying_power:
+                    st.info(
+                        f"**Buying-power cap**: equity x leverage affords "
+                        f"{fs_result.buying_power_qty_cap} contract(s); the risk budget "
+                        f"alone would allow more. Max loss shown reflects the capped size."
+                    )
 
             except ValueError as e:
                 st.error(f"Calculation Error: {e}")
@@ -483,6 +509,241 @@ with right_col:
             """,
             unsafe_allow_html=True,
         )
+
+# P&L SCENARIO & COSTS (futures mode, full cost stack)
+if mode == "Futures (Precision)" and fs_result is not None:
+    st.markdown("---")
+    st.markdown("### 📈 P&L Scenario & Costs")
+    st.caption(
+        f"Position from above: {fs_result.qty} x {symbol} @ {fs_result.entry}, "
+        f"stop {fs_result.stop_price}. Add a target and costs for the full net picture."
+    )
+
+    pnl_in_col, pnl_out_col = st.columns([1, 1], gap="large")
+
+    with pnl_in_col:
+        target_price = st.number_input(
+            "Target Price (win scenario)",
+            min_value=0.0001,
+            value=None,
+            step=step_value,
+            format="%.4f",
+            placeholder="e.g. 5100.00",
+            help="Exit price if the trade goes your way",
+            key="target",
+        )
+
+        fee_col1, fee_col2 = st.columns(2)
+        with fee_col1:
+            fees_open = st.number_input(
+                "Fees open ($)", min_value=0.0, value=0.0, step=0.5, key="fees_open"
+            )
+            slip_open = st.number_input(
+                "Slippage open ($)", min_value=0.0, value=0.0, step=0.5, key="slip_open"
+            )
+        with fee_col2:
+            fees_close = st.number_input(
+                "Fees close ($)", min_value=0.0, value=0.0, step=0.5, key="fees_close"
+            )
+            slip_close = st.number_input(
+                "Slippage close ($)", min_value=0.0, value=0.0, step=0.5, key="slip_close"
+            )
+
+        tax_mode_label = st.selectbox(
+            "Tax mode (US federal)",
+            ["§1256 60/40 (futures)", "Short-term ordinary"],
+            help="Exchange-traded futures normally qualify for the §1256 60/40 split",
+            key="tax_mode",
+        )
+        rate_col1, rate_col2 = st.columns(2)
+        with rate_col1:
+            st_rate_pct = st.number_input(
+                "Short-term rate (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=24.0,
+                step=1.0,
+                key="st_rate",
+            )
+        with rate_col2:
+            lt_rate_pct = st.number_input(
+                "Long-term rate (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=15.0,
+                step=1.0,
+                key="lt_rate",
+            )
+
+        with st.expander("Energy & margin loans (optional)"):
+            energy_profile = st.selectbox(
+                "Energy profile",
+                ["None", *ENERGY_PROFILES],
+                format_func=lambda k: (
+                    "None" if k == "None" else f"{k} — {ENERGY_PROFILES[k]['description']}"
+                ),
+                key="energy_profile",
+            )
+            session_hours = st.number_input(
+                "Session hours",
+                min_value=0.0,
+                max_value=48.0,
+                value=0.0,
+                step=0.5,
+                key="energy_hours",
+            )
+
+            st.markdown(
+                '<div class="section-label">Margin loans (up to 3)</div>',
+                unsafe_allow_html=True,
+            )
+            _sofr = fetch_sofr_reference()  # live NY Fed, cached 1h, static fallback
+            st.caption(
+                f"Rate context: SOFR {_sofr['current']}% ({_sofr['source']}) — "
+                "brokers typically charge SOFR + a spread as margin APR"
+            )
+            margin_loans = []
+            for i in (1, 2, 3):
+                loan_c1, loan_c2, loan_c3 = st.columns(3)
+                loan_amt = loan_c1.number_input(
+                    f"Loan {i} amount ($)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=500.0,
+                    key=f"loan{i}_amt",
+                )
+                loan_apr = loan_c2.number_input(
+                    f"Loan {i} APR (%)",
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=0.0,
+                    step=0.5,
+                    key=f"loan{i}_apr",
+                )
+                loan_days = loan_c3.number_input(
+                    f"Loan {i} days",
+                    min_value=0,
+                    max_value=365,
+                    value=1,
+                    step=1,
+                    key=f"loan{i}_days",
+                )
+                if loan_amt > 0 and loan_apr > 0:
+                    margin_loans.append(
+                        MarginLoan(
+                            loan_amount=Decimal(str(loan_amt)),
+                            apr=Decimal(str(loan_apr)) / Decimal("100"),
+                            days_held=int(loan_days),
+                        )
+                    )
+
+    with pnl_out_col:
+        if target_price is None:
+            st.markdown(
+                """
+                <div class="empty-state">
+                <h3>🎯 Set a Target</h3>
+                <p>Enter a target price to see net P&L after fees, slippage, taxes,
+                energy, and margin interest</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        elif (side == "long" and target_price <= float(fs_result.entry)) or (
+            side == "short" and target_price >= float(fs_result.entry)
+        ):
+            st.warning(
+                "Target must be on the winning side of entry " "(above for long, below for short)."
+            )
+        else:
+            if energy_profile != "None" and session_hours > 0:
+                energy_kwh = ENERGY_PROFILES[energy_profile]["power_kw"] * Decimal(
+                    str(session_hours)
+                )
+            else:
+                energy_kwh = Decimal("0")
+
+            try:
+                pnl = calculate_pnl(
+                    symbol=symbol,
+                    side=side,
+                    qty=fs_result.qty,
+                    entry=fs_result.entry,
+                    target=Decimal(str(target_price)),
+                    stop=fs_result.stop_price,
+                    fees_open=Decimal(str(fees_open)),
+                    fees_close=Decimal(str(fees_close)),
+                    slippage_open=Decimal(str(slip_open)),
+                    slippage_close=Decimal(str(slip_close)),
+                    energy_kwh=energy_kwh,
+                    margin_loans=margin_loans,
+                    tax_mode=(
+                        "section_1256"
+                        if tax_mode_label.startswith("§1256")
+                        else "short_term_ordinary"
+                    ),
+                    st_rate=Decimal(str(st_rate_pct)),
+                    lt_rate=Decimal(str(lt_rate_pct)),
+                )
+            except ValueError as e:
+                st.error(f"P&L Error: {e}")
+            else:
+                win_col, loss_col = st.columns(2)
+                with win_col:
+                    st.metric("Gross Win", f"${pnl.gross_win:,.2f}")
+                    st.metric("Net Win (after costs + tax)", f"${pnl.net_win_scenario:,.2f}")
+                with loss_col:
+                    st.metric("Gross Loss", f"-${pnl.gross_loss:,.2f}")
+                    st.metric("Net Loss (after costs)", f"${pnl.net_loss_scenario:,.2f}")
+
+                if pnl.net_loss_scenario != 0:
+                    net_rr = abs(pnl.net_win_scenario / pnl.net_loss_scenario)
+                    st.caption(f"Net risk/reward: {net_rr:.2f} : 1")
+
+                st.markdown(
+                    '<div class="section-label">Cost Breakdown</div>',
+                    unsafe_allow_html=True,
+                )
+                st.dataframe(
+                    [
+                        {"Cost": label.replace("_", " "), "Amount ($)": f"{value:,.2f}"}
+                        for label, value in pnl.breakdown.items()
+                    ],
+                    hide_index=True,
+                    width="stretch",
+                )
+
+                scenario = {
+                    "symbol": symbol,
+                    "side": side,
+                    "qty": fs_result.qty,
+                    "entry": str(fs_result.entry),
+                    "target": str(target_price),
+                    "stop": str(fs_result.stop_price),
+                    "gross_win": str(pnl.gross_win),
+                    "gross_loss": str(pnl.gross_loss),
+                    "net_win": str(pnl.net_win_scenario),
+                    "net_loss": str(pnl.net_loss_scenario),
+                    "breakdown": {k: str(v) for k, v in pnl.breakdown.items()},
+                }
+                dl_col1, dl_col2 = st.columns(2)
+                dl_col1.download_button(
+                    "⬇ Download JSON",
+                    json.dumps(scenario, indent=2),
+                    file_name=f"{symbol}_{side}_scenario.json",
+                    mime="application/json",
+                    key="dl_json",
+                )
+                csv_rows = ["field,value"]
+                csv_rows += [f"{k},{v}" for k, v in scenario.items() if k != "breakdown"]
+                csv_rows += [f"cost_{k},{v}" for k, v in scenario["breakdown"].items()]
+                dl_col2.download_button(
+                    "⬇ Download CSV",
+                    "\n".join(csv_rows),
+                    file_name=f"{symbol}_{side}_scenario.csv",
+                    mime="text/csv",
+                    key="dl_csv",
+                )
 
 # FOOTER
 st.markdown("---")

@@ -1,17 +1,21 @@
-"""Futures contract specifications (ES, NQ, CL, GC).
+"""Futures contract specifications (ES, NQ, CL, GC + CME micros).
 
 Reference: CME Group specifications:
 - ES (E-mini S&P 500): $50 per full point, 0.25 index point tick = $12.50
 - NQ (E-mini Nasdaq 100): $20 per full point, 0.25 index point tick = $5.00
 - CL (Light Sweet Crude Oil): $1,000 per contract per full point, $0.01 tick = $10.00
 - GC (Gold Futures): $100 per full ounce, $0.10 tick = $10.00
+
+Micros (each exactly 1/10 of its parent; verified vs CME/TradeStation 2026-07):
+- MES: $5/pt, 0.25 tick = $1.25   - MNQ: $2/pt, 0.25 tick = $0.50
+- MCL: $100/pt, $0.01 tick = $1.00 - MGC: $10/pt, $0.10 tick = $1.00
 """
 
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
-Symbol = Literal["ES", "NQ", "CL", "GC"]
+Symbol = Literal["ES", "NQ", "CL", "GC", "MES", "MNQ", "MCL", "MGC"]
 
 
 @dataclass(frozen=True)
@@ -37,16 +41,6 @@ class FuturesContract:
             raise ValueError(f"min_tick must be positive, got {self.min_tick}")
         units = (price / self.min_tick).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         return units * self.min_tick
-
-    def tick_diff(self, price_a: Decimal, price_b: Decimal) -> int:
-        """Return number of ticks between two prices."""
-        price_a = Decimal(str(price_a))
-        price_b = Decimal(str(price_b))
-        if self.min_tick <= 0:
-            raise ValueError(f"min_tick must be positive, got {self.min_tick}")
-        diff = abs(price_a - price_b)
-        ticks = diff / self.min_tick
-        return int(ticks.to_integral_value(rounding=ROUND_HALF_UP))
 
     def pnl_for_move(self, qty: int | float, price_move: Decimal) -> Decimal:
         """Calculate P&L for a given quantity and price move."""
@@ -85,7 +79,38 @@ CONTRACTS: dict[Symbol, FuturesContract] = {
         tick_value=Decimal("10.00"),  # $10.00 per tick
         description="Gold Futures (COMEX GC)",
     ),
+    "MES": FuturesContract(
+        symbol="MES",
+        ppv_per_unit=Decimal("5"),  # $5 per index point (1/10 ES)
+        min_tick=Decimal("0.25"),
+        tick_value=Decimal("1.25"),
+        description="Micro E-mini S&P 500 (CME MES)",
+    ),
+    "MNQ": FuturesContract(
+        symbol="MNQ",
+        ppv_per_unit=Decimal("2"),  # $2 per index point (1/10 NQ)
+        min_tick=Decimal("0.25"),
+        tick_value=Decimal("0.50"),
+        description="Micro E-mini Nasdaq 100 (CME MNQ)",
+    ),
+    "MCL": FuturesContract(
+        symbol="MCL",
+        ppv_per_unit=Decimal("100"),  # $100 per full point, 100 barrels (1/10 CL)
+        min_tick=Decimal("0.01"),
+        tick_value=Decimal("1.00"),
+        description="Micro WTI Crude Oil (NYMEX MCL)",
+    ),
+    "MGC": FuturesContract(
+        symbol="MGC",
+        ppv_per_unit=Decimal("10"),  # $10 per troy ounce, 10 oz (1/10 GC)
+        min_tick=Decimal("0.10"),
+        tick_value=Decimal("1.00"),
+        description="Micro Gold (COMEX MGC)",
+    ),
 }
+
+# Parent -> micro sibling (1/10 size), used for sizing guidance
+MICRO_OF: dict[str, str] = {"ES": "MES", "NQ": "MNQ", "CL": "MCL", "GC": "MGC"}
 
 
 def get_contract(symbol: Symbol) -> FuturesContract:

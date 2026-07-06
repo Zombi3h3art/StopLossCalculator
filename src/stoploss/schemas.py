@@ -16,9 +16,10 @@ class SizingInput(BaseModel):
                     "symbol": "ES",
                     "side": "long",
                     "entry": 5050.00,
-                    "account_equity": 20000.00,
-                    "leverage": 3.0,
+                    "account_equity": 25000.00,
+                    "leverage": 12.0,
                     "pct_stop": 0.004,
+                    "risk_cash": 2500.00,
                 }
             ]
         }
@@ -63,24 +64,7 @@ class SizingInput(BaseModel):
         default=None,
         gt=0,
         decimal_places=2,
-        description="Maximum risk in dollars (for ATR method)",
-    )
-    atr: Decimal | None = Field(
-        default=None,
-        gt=0,
-        decimal_places=4,
-        description="Average True Range (for ATR method)",
-    )
-    k_atr: Decimal = Field(
-        default=Decimal("2"),
-        gt=0,
-        decimal_places=2,
-        description="ATR multiplier (default 2.0)",
-    )
-    swing_low: Decimal | None = Field(
-        default=None,
-        decimal_places=4,
-        description="Swing low/high for structure-based stop (optional)",
+        description="Risk budget in dollars — the maximum acceptable loss (required)",
     )
     fees_open: Decimal = Field(
         default=Decimal("0"),
@@ -113,6 +97,14 @@ class SizingOutput(BaseModel):
     fees_close: Decimal = Field(..., ge=0)
     slippage_open: Decimal = Field(..., ge=0)
     method: str
+    buying_power_qty_cap: int | None = Field(
+        default=None,
+        description="Max contracts the declared equity x leverage can control",
+    )
+    capped_by_buying_power: bool = Field(
+        default=False,
+        description="True when buying power reduced qty below the risk-based qty",
+    )
 
 
 class MarginLoanInput(BaseModel):

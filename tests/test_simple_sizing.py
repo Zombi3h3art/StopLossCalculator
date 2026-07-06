@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.stoploss.simple_sizing import calculate_stop_loss
+from stoploss.simple_sizing import calculate_stop_loss
 
 
 class TestSimpleSizingBasic:

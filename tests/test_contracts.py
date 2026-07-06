@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.stoploss.contracts import get_contract
+from stoploss.contracts import get_contract
 
 
 class TestContractSpecs:
@@ -162,3 +162,48 @@ class TestContractValidation:
         assert contract1.symbol == contract2.symbol
         assert contract1.point_value == contract2.point_value
         assert contract1.min_tick == contract2.min_tick
+
+
+class TestMicroContracts:
+    """CME micro contract specs — verified against CME/TradeStation 2026-07-06.
+
+    Each micro is exactly 1/10 of its parent and ppv * min_tick == tick_value.
+    """
+
+    def test_mes_specs(self):
+        c = get_contract("MES")
+        assert c.ppv_per_unit == Decimal("5")
+        assert c.min_tick == Decimal("0.25")
+        assert c.tick_value == Decimal("1.25")
+
+    def test_mnq_specs(self):
+        c = get_contract("MNQ")
+        assert c.ppv_per_unit == Decimal("2")
+        assert c.min_tick == Decimal("0.25")
+        assert c.tick_value == Decimal("0.50")
+
+    def test_mcl_specs(self):
+        c = get_contract("MCL")
+        assert c.ppv_per_unit == Decimal("100")
+        assert c.min_tick == Decimal("0.01")
+        assert c.tick_value == Decimal("1.00")
+
+    def test_mgc_specs(self):
+        c = get_contract("MGC")
+        assert c.ppv_per_unit == Decimal("10")
+        assert c.min_tick == Decimal("0.10")
+        assert c.tick_value == Decimal("1.00")
+
+    def test_micros_are_one_tenth_of_parents(self):
+        from stoploss.contracts import MICRO_OF
+
+        assert MICRO_OF == {"ES": "MES", "NQ": "MNQ", "CL": "MCL", "GC": "MGC"}
+        for parent, micro in MICRO_OF.items():
+            assert get_contract(micro).ppv_per_unit * 10 == get_contract(parent).ppv_per_unit
+
+    def test_all_contracts_tick_value_consistent(self):
+        """ppv * min_tick must equal tick_value for every listed contract."""
+        from stoploss.contracts import CONTRACTS
+
+        for symbol, c in CONTRACTS.items():
+            assert c.ppv_per_unit * c.min_tick == c.tick_value, symbol

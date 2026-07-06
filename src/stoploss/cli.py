@@ -49,7 +49,10 @@ def size(
     from .sizing import size_by_atr_stop, size_by_percent_stop
 
     if pct_stop is None and atr is None:
-        typer.echo("Error: specify either --pct-stop or --atr (both need --risk)")
+        typer.echo("Error: specify one of --pct-stop or --atr (both need --risk)")
+        raise typer.Exit(1)
+    if pct_stop is not None and atr is not None:
+        typer.echo("Error: specify only one of --pct-stop or --atr, not both")
         raise typer.Exit(1)
     if risk is None:
         typer.echo("Error: --risk (risk budget in dollars) is required for sizing")

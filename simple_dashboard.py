@@ -193,7 +193,6 @@ st.markdown(
 
     .direction-long::before {
         content: "▲ ";
-        aria-hidden: true;
         font-size: 0.8em;
     }
 
@@ -206,7 +205,6 @@ st.markdown(
 
     .direction-short::before {
         content: "▼ ";
-        aria-hidden: true;
         font-size: 0.8em;
     }
 

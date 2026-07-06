@@ -88,6 +88,33 @@ class TestSizeCommand:
         assert "2 contracts" in result.output
         assert "5030.00" in result.output
 
+    def test_size_rejects_both_methods(self):
+        """--pct-stop and --atr together is ambiguous and must exit 1."""
+        result = runner.invoke(
+            app,
+            [
+                "size",
+                "--symbol",
+                "ES",
+                "--side",
+                "long",
+                "--entry",
+                "5050",
+                "--equity",
+                "25000",
+                "--leverage",
+                "12",
+                "--pct-stop",
+                "0.004",
+                "--atr",
+                "10",
+                "--risk",
+                "2500",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "one of" in result.output
+
     def test_size_requires_a_method(self):
         result = runner.invoke(
             app,

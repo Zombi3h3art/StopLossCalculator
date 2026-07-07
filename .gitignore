@@ -137,3 +137,15 @@ desktop.ini
 .coverage
 .pytest_cache/
 validate_math.py
+
+# Conda environments
+.conda/
+
+# Ruff cache
+.ruff_cache/
+
+# Claude Code local state (not portable across clones)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json
+.claude/worktrees/

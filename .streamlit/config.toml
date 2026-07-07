@@ -1,3 +1,6 @@
+[browser]
+gatherUsageStats = false
+
 # Light-first theme per DESIGN.md (monochrome navy + ocean-blue accent)
 [theme]
 base = "light"

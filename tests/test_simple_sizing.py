@@ -86,8 +86,7 @@ class TestSimpleSizingBasic:
             leverage=20,
             acceptable_risk_pct=5,
         )
-        # notional = 1000 * 20 = 20000
-        # qty = 20000 / 10 = 2000
+
         assert result.quantity == Decimal("2000")
 
     def test_decimal_precision_maintained(self):

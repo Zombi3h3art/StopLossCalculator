@@ -208,6 +208,31 @@ st.markdown(
         font-size: 0.8em;
     }
 
+    /* Direction toggle buttons: Long = green, Short = red */
+    div[data-testid="stButtonGroup"] button:first-child {
+        background-color: rgba(47, 133, 90, 0.12);
+        border-color: #2F855A;
+        color: #2F855A;
+    }
+
+    div[data-testid="stButtonGroup"] button:first-child[kind="segmented_controlActive"] {
+        background-color: rgba(47, 133, 90, 0.25);
+        border-color: #2F855A;
+        color: #276749;
+    }
+
+    div[data-testid="stButtonGroup"] button:last-child {
+        background-color: rgba(197, 48, 48, 0.12);
+        border-color: #C53030;
+        color: #C53030;
+    }
+
+    div[data-testid="stButtonGroup"] button:last-child[kind="segmented_controlActive"] {
+        background-color: rgba(197, 48, 48, 0.25);
+        border-color: #C53030;
+        color: #9B2C2C;
+    }
+
     /* Screen reader only text */
     .sr-only {
         position: absolute;

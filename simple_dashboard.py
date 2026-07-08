@@ -287,21 +287,19 @@ with left_col:
     symbol = "ES"  # Default
 
     if mode == "Futures (Precision)":
+        futures_symbols = ["ES", "NQ", "CL", "GC", "MES", "MNQ", "MCL", "MGC"]
+        contract_rows = "\n".join(
+            f"| {c.symbol} | ${c.point_value}/pt | {c.min_tick} | ${c.tick_value} | {c.description} |"
+            for c in (get_contract(s) for s in futures_symbols)
+        )
         symbol = st.selectbox(
             "Contract",
-            ["ES", "NQ", "CL", "GC", "MES", "MNQ", "MCL", "MGC"],
+            futures_symbols,
             help=(
                 "M-prefixed micros are 1/10 the size — ideal for smaller accounts.\n\n"
                 "| Symbol | Point Value | Tick | Tick Value | Contract |\n"
                 "|---|---|---|---|---|\n"
-                "| ES | $50/pt | 0.25 | $12.50 | E-mini S&P 500 |\n"
-                "| NQ | $20/pt | 0.25 | $5.00 | E-mini Nasdaq 100 |\n"
-                "| CL | $1,000/pt | $0.01 | $10.00 | Light Sweet Crude Oil |\n"
-                "| GC | $100/pt | $0.10 | $10.00 | Gold Futures |\n"
-                "| MES | $5/pt (1/10) | 0.25 | $1.25 | Micro E-mini S&P 500 |\n"
-                "| MNQ | $2/pt (1/10) | 0.25 | $0.50 | Micro E-mini Nasdaq |\n"
-                "| MCL | $100/pt (1/10) | $0.01 | $1.00 | Micro WTI Crude Oil |\n"
-                "| MGC | $10/pt (1/10) | $0.10 | $1.00 | Micro Gold |"
+                f"{contract_rows}"
             ),
             key="symbol",
         )

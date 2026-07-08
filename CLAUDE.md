@@ -1,8 +1,8 @@
 # Project Instructions
 
 Precision stop-loss / P&L calculator for futures (ES, NQ, CL, GC). Decimal-only math.
-Three supported surfaces: `simple_dashboard.py` (Streamlit, primary), `stoploss` CLI (Typer),
-`api/app.py` (FastAPI). Detailed agent guidance lives in `.github/copilot-instructions.md` —
+Two supported surfaces: `simple_dashboard.py` (Streamlit, primary), `api/app.py` (FastAPI).
+Detailed agent guidance lives in `.github/copilot-instructions.md` —
 this file covers the essentials and the non-negotiables.
 
 ## The Iron Rules (math)
@@ -22,10 +22,9 @@ this file covers the essentials and the non-negotiables.
 
 ## Build & Run
 
-- Install: `pip install -e ".[dev]"`
-- Dashboard: `streamlit run simple_dashboard.py` (or `.claude/launch.json` → `dashboard`)
-- API: `python -m uvicorn api.app:app --reload`
-- CLI: `stoploss size --help` / `stoploss pnl --help`
+- Install: `pixi install` (recommended, cross-platform) or `pip install -e ".[dev]"`
+- Dashboard: `pixi run dashboard` or `streamlit run simple_dashboard.py` (or `.claude/launch.json` → `dashboard`)
+- API: `pixi run api` or `python -m uvicorn api.app:app --reload`
 
 ## Testing & Quality (all must pass before commit)
 

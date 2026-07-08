@@ -16,31 +16,25 @@ Calculates **precise P&L for futures trades** (ES, NQ, CL, GC) with:
 ```bash
 git clone https://github.com/Zombi3h3art/StopLossCalculator.git
 cd StopLossCalculator
-pip install -e ".[dev]"
+pixi install          # or: pip install -e ".[dev]"
 ```
 
-**Step 2: Run One of Three Ways**
+**Step 2: Run One of Two Ways**
 
 *Web UI (easiest):*
 ```bash
-streamlit run simple_dashboard.py  # http://localhost:8501
-```
-
-*CLI (fastest):*
-```bash
-stoploss size --symbol ES --side long --entry 5050 --equity 25000 \
-  --leverage 12 --pct-stop 0.004 --risk 2500
+pixi run dashboard     # or: streamlit run simple_dashboard.py
+# http://localhost:8501
 ```
 
 *API (localhost):*
 ```bash
-python -m uvicorn api.app:app --reload
+pixi run api           # or: python -m uvicorn api.app:app --reload
 # POST http://localhost:8000/size
 ```
 
 **Step 3: Check Results**
 - UI: Dashboard with trade summary card
-- CLI: Terminal output
 - API: JSON response
 
 ### 📦 Files to Know
@@ -92,7 +86,7 @@ Risk/Reward: ~1.99:1 net
 ### 🏗️ Architecture
 
 ```
-User Input (UI/CLI/API)
+User Input (UI/API)
         ↓
   Pydantic Models (validation)
         ↓
@@ -132,7 +126,7 @@ GET /health         # Health check
 
 1. **START HERE**: Read `README.md`
 2. **See Examples**: Check `WORKED_EXAMPLES.md` (4 trades with JSON)
-3. **How-To**: Use UI, CLI, or API (see Quick Start above)
+3. **How-To**: Use UI or API (see Quick Start above)
 4. **Code**: Browse `src/stoploss/*.py` (docstrings cite IRS/CME/EIA sources)
 
 ### 🚨 Important Notes

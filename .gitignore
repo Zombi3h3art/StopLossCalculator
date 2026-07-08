@@ -149,3 +149,6 @@ validate_math.py
 .claude/scheduled_tasks.lock
 .claude/scheduled_tasks.json
 .claude/worktrees/
+
+# Pixi (pixi.lock is committed for reproducibility)
+.pixi/

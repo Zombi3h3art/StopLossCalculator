@@ -137,15 +137,6 @@ st.markdown(
         margin-bottom: 0.5rem;
     }
 
-    /* Input Container - Bordered, no fill */
-    .input-container {
-        background-color: transparent;
-        padding: 0.5rem 0;
-        border: 1px solid var(--neutral-mid);
-        border-radius: 4px;
-        margin-bottom: 0.5rem;
-    }
-
     /* Risk Summary Bar */
     .risk-bar {
         background-color: transparent;
@@ -216,9 +207,9 @@ st.markdown(
     }
 
     div[data-testid="stButtonGroup"] button:first-child[kind="segmented_controlActive"] {
-        background-color: rgba(47, 133, 90, 0.25);
+        background-color: #2F855A;
         border-color: #2F855A;
-        color: #276749;
+        color: #FFFFFF;
     }
 
     div[data-testid="stButtonGroup"] button:last-child {
@@ -228,9 +219,9 @@ st.markdown(
     }
 
     div[data-testid="stButtonGroup"] button:last-child[kind="segmented_controlActive"] {
-        background-color: rgba(197, 48, 48, 0.25);
+        background-color: #C53030;
         border-color: #C53030;
-        color: #9B2C2C;
+        color: #FFFFFF;
     }
 
     /* Screen reader only text */
@@ -299,14 +290,24 @@ with left_col:
         symbol = st.selectbox(
             "Contract",
             ["ES", "NQ", "CL", "GC", "MES", "MNQ", "MCL", "MGC"],
-            help="M-prefixed micros are 1/10 the size — ideal for smaller accounts",
+            help=(
+                "M-prefixed micros are 1/10 the size — ideal for smaller accounts.\n\n"
+                "| Symbol | Point Value | Tick | Tick Value | Contract |\n"
+                "|---|---|---|---|---|\n"
+                "| ES | $50/pt | 0.25 | $12.50 | E-mini S&P 500 |\n"
+                "| NQ | $20/pt | 0.25 | $5.00 | E-mini Nasdaq 100 |\n"
+                "| CL | $1,000/pt | $0.01 | $10.00 | Light Sweet Crude Oil |\n"
+                "| GC | $100/pt | $0.10 | $10.00 | Gold Futures |\n"
+                "| MES | $5/pt (1/10) | 0.25 | $1.25 | Micro E-mini S&P 500 |\n"
+                "| MNQ | $2/pt (1/10) | 0.25 | $0.50 | Micro E-mini Nasdaq |\n"
+                "| MCL | $100/pt (1/10) | $0.01 | $1.00 | Micro WTI Crude Oil |\n"
+                "| MGC | $10/pt (1/10) | $0.10 | $1.00 | Micro Gold |"
+            ),
             key="symbol",
         )
 
         contract = get_contract(symbol)
         st.caption(f"Tick: {contract.min_tick} | Point Value: ${contract.point_value}")
-
-    st.markdown('<div class="input-container">', unsafe_allow_html=True)
 
     # Calculate step value safely
     step_value = 0.01
@@ -323,7 +324,6 @@ with left_col:
         help="Current price of the asset",
         key="entry",
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
     # Direction - clean labels (segmented_control needs streamlit>=1.40, see pyproject)
     direction = st.segmented_control(
@@ -336,18 +336,15 @@ with left_col:
 
     side = direction if direction else "long"
 
-    st.markdown('<div class="input-container">', unsafe_allow_html=True)
     trade_amount = st.number_input(
         "Account Equity / Trade Amount ($)",
-        min_value=1.0,
-        step=100.0,
+        min_value=0.0,
+        step=1.0,
         value=10000.0 if mode == "Futures (Precision)" else 100.0,
         help="Total cash available for this trade setup",
         key="equity",
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="input-container">', unsafe_allow_html=True)
     leverage = st.number_input(
         "Leverage",
         min_value=1,
@@ -357,22 +354,19 @@ with left_col:
         help="How much you're amplifying (10x, 100x, etc)",
         key="leverage",
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="input-container">', unsafe_allow_html=True)
     risk_pct = st.number_input(
         "Acceptable Loss (% of Equity)",
-        min_value=0.01,
+        min_value=0.0,
         max_value=100.0,
         value=1.0 if mode == "Futures (Precision)" else 9.0,
-        step=0.1,
+        step=0.01,
         help="Max % of trade amount to risk",
         key="risk_pct",
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    # Risk summary bar
-    risk_dollars = trade_amount * risk_pct / 100
+    # Risk summary bar (Decimal per project convention — avoids float display artifacts)
+    risk_dollars = Decimal(str(trade_amount)) * Decimal(str(risk_pct)) / Decimal("100")
     st.markdown(
         f"""
         <div class="risk-bar">
@@ -462,7 +456,7 @@ with right_col:
                 <div class="summary-header">Trade Summary</div>
                 <div class="summary-row">
                     <span class="summary-label">Entry Price</span>
-                    <span class="summary-value">${ticker_price:.4f}</span>
+                    <span class="summary-value">${Decimal(str(ticker_price)):.4f}</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">Direction</span>
@@ -505,7 +499,7 @@ with right_col:
         with col4:
             st.metric("Units Controlled", f"{qty:.2f}")
             # Risk/Leverage Ratio
-            ratio = risk_pct / leverage
+            ratio = Decimal(str(risk_pct)) / Decimal(str(leverage))
             st.metric("Risk/Leverage Ratio", f"{ratio:.4f}%")
 
         # Warning for extreme leverage

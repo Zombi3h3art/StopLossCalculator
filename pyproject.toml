@@ -7,7 +7,7 @@ packages = ["src/stoploss"]
 
 [project]
 name = "stop-loss-calculator"
-version = "0.3.0"
+version = "0.4.0"
 description = "Precision stop-loss calculator for futures trading with tax, energy, and margin accounting"
 readme = "README.md"
 license = {text = "MIT"}
@@ -28,7 +28,6 @@ classifiers = [
 
 dependencies = [
     "pydantic>=2.0",
-    "typer>=0.9",
     "fastapi>=0.104",
     "uvicorn>=0.24",
     "streamlit>=1.40",  # st.segmented_control
@@ -46,9 +45,6 @@ dev = [
     "mypy>=1.7",
     "types-requests",
 ]
-
-[project.scripts]
-stoploss = "stoploss.cli:app"
 
 [tool.black]
 line-length = 100
@@ -82,3 +78,42 @@ markers = [
     "integration: Integration tests",
     "slow: Slow tests requiring external API calls",
 ]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["win-64", "osx-64", "osx-arm64", "linux-64"]
+
+[tool.pixi.activation.env]
+# Prevents a Windows per-user site-packages install (e.g. an existing global
+# pytest/streamlit) from shadowing packages inside this isolated pixi env.
+PYTHONNOUSERSITE = "1"
+
+[tool.pixi.dependencies]
+python = ">=3.10"
+
+[tool.pixi.pypi-dependencies]
+stop-loss-calculator = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+dashboard = "streamlit run simple_dashboard.py"
+api = "uvicorn api.app:app --reload"
+
+[tool.pixi.feature.dev.pypi-dependencies]
+pytest = ">=7.4"
+pytest-cov = ">=4.1"
+httpx = ">=0.27"
+hypothesis = ">=6.100"
+ruff = ">=0.1"
+black = ">=23.11"
+mypy = ">=1.7"
+types-requests = "*"
+
+[tool.pixi.feature.dev.tasks]
+test = "pytest tests/ -v --cov=src/stoploss --cov-fail-under=85"
+lint = "ruff check src/ tests/ api/ simple_dashboard.py"
+format-check = "black --check src/ tests/ api/ simple_dashboard.py"
+typecheck = "mypy src/ --ignore-missing-imports"
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }

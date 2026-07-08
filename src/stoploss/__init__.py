@@ -11,7 +11,7 @@ A precision financial calculator for futures trading with comprehensive accounti
 - Contract-specific math (ES, NQ, CL, GC with proper tick rounding)
 
 Primary Interface: Streamlit Dashboard (simple_dashboard.py)
-Also supports: CLI, REST API
+Also supports: REST API
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

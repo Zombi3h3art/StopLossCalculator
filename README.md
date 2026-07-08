@@ -186,7 +186,7 @@ mypy src/                                 # Type check
 
 ## 📚 Reference Notes
 
-### Taxes (federal only)
+### Taxes (USA federal only) (This is just a random tool on the internet, not legal advice! Consult a local human professional for accuracy)
 
 -   [IRS Pub 550](https://www.irs.gov/publications/p550) — Investment Income & Expenses
 -   [IRS Form 6781](https://www.irs.gov/forms/about-form-6781) — §1256 Contracts
@@ -252,4 +252,4 @@ Math-affecting changes must be documented in [CHANGELOG.md](CHANGELOG.md).
 **Scripture anchors (KJV):**
 
 -   Luke 14:28 — "For which of you, intending to build a tower, sitteth not down first, and counteth the cost, whether he have sufficient to finish it?"
--   Proverbs 11:1 — "A false balance is abomination to the LORD: but a just weight is his delight."
+-   Proverbs 11:1 — "A false balance is abomination to the LORD: But a just weight is his delight."

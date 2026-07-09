@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-08
+
+### Removed
+
+- **BREAKING — Typer CLI removed** (`stoploss size` / `stoploss pnl`): the `stoploss`
+  console script, `src/stoploss/cli.py`, and the `typer` dependency are gone. The
+  dashboard and REST API are unaffected — they never depended on the CLI module.
+  Scripted CLI users should switch to `POST /size` / `POST /pnl` (see README.md).
+
+### Added
+
+- **Pixi** as the primary cross-platform install/run method (`pixi install &&
+  pixi run dashboard`); `pip install -e ".[dev]"` remains supported as a manual
+  alternative.
+
+### Fixed
+
+- Dashboard: Account Equity and Acceptable Loss (%) fields had a step/min_value
+  grid that excluded their own defaults, triggering the browser's native
+  step-validation popup instead of the intended help tooltip.
+- Dashboard: removed a non-functional empty bordered box between input fields.
+- Dashboard: Direction toggle's selected state now uses a solid fill instead of
+  a faint tint for clearer selected-vs-unselected contrast.
+- Dashboard: Contract selector tooltip now covers all 8 supported contracts
+  (name, point value, tick), not just the micro-sizing note.
+
 ## [0.3.0] - 2026-07-06
 
 ### Math-Affecting Changes

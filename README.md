@@ -11,17 +11,28 @@ Precision stop-loss calculator for traders. Risk-first position sizing and P&L c
 -   **Margin Support**: Up to 3 cascading margin loans with daily accrual interest (360-day basis)
 -   **Energy Costs**: EIA-based energy cost estimation
 -   **Fees & Slippage**: Fully configurable transaction costs
--   **Three Interfaces**: Streamlit dashboard (primary), Typer CLI, FastAPI REST API
+-   **Two Interfaces**: Streamlit dashboard (primary), FastAPI REST API
 
 ## 🚀 Quick Start
 
-### Option 1: Desktop Launcher (Easiest)
+### Option 1: Pixi (Recommended — cross-platform, no separate Python install needed)
+
+```bash
+git clone https://github.com/Zombi3h3art/StopLossCalculator.git
+cd StopLossCalculator
+pixi install
+pixi run dashboard
+```
+
+Open [`http://localhost:8501`](http://localhost:8501) in your browser.
+
+### Option 2: Desktop Launcher (Windows, if Python is already installed)
 
 1. Double-click **`Launch Stop Loss Calculator.bat`** inside the project folder (or create a Desktop shortcut that points to it)
 2. Dashboard opens automatically in your browser
 3. Start calculating!
 
-### Option 2: Manual Launch
+### Option 3: Manual (pip)
 
 ```bash
 git clone https://github.com/Zombi3h3art/StopLossCalculator.git
@@ -98,8 +109,7 @@ stop_loss_calculator/
 │   ├── taxes.py                 # Federal tax (short-term + §1256 60/40)
 │   ├── rates.py                 # Margin interest (360-day), SOFR reference
 │   ├── energy.py                # Energy cost estimation (EIA)
-│   ├── schemas.py               # Pydantic v2 validation models
-│   └── cli.py                   # Typer CLI (stoploss size / stoploss pnl)
+│   └── schemas.py               # Pydantic v2 validation models
 ├── tests/                       # Golden + property tests (pytest, hypothesis)
 ├── README.md                    # This file
 ├── WORKED_EXAMPLES.md           # 4 complete trades, code-generated numbers
@@ -123,23 +133,6 @@ stop_loss_calculator/
 When buying power can't control a full-size contract, sizing errors point you at the micro sibling.
 
 ## ⚙️ Advanced Usage
-
-### CLI
-
-```bash
-# Risk-first percent-stop sizing
-stoploss size --symbol ES --side long --entry 5050 --equity 25000 \
-  --leverage 12 --pct-stop 0.004 --risk 2500 --fees-open 2.5 --fees-close 2.5
-
-# ATR/structure stop sizing
-stoploss size --symbol ES --side long --entry 5050.10 --equity 25000 \
-  --atr 10.07 --k-atr 2 --risk 2010
-
-# Full P&L with §1256 taxes and a margin loan
-stoploss pnl --symbol ES --side long --entry 5050 --target 5100 --stop 5029.75 \
-  --qty 1 --fees-open 2.5 --fees-close 2.5 --tax-mode 1256 \
-  --st-rate 0.24 --lt-rate 0.15 --loan1 5000:0.065 --days 2
-```
 
 ### REST API
 
@@ -213,7 +206,6 @@ mypy src/                                 # Type check
 ## Roadmap
 
 -   [x] Core math (sizing, P&L, taxes, margin) — risk-first as of 0.3.0
--   [x] CLI with Typer (percent + ATR paths)
 -   [x] FastAPI REST API
 -   [x] Streamlit dashboard
 -   [x] GitHub Actions CI

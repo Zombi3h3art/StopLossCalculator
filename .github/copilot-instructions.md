@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Stop Loss Net Edge Calculator** is a precision financial calculator for futures trading (ES, NQ, CL, GC) with comprehensive cost accounting. It provides multiple interfaces (CLI, REST API, Streamlit UI) and uses Decimal-based math for precision.
+**Stop Loss Net Edge Calculator** is a precision financial calculator for futures trading (ES, NQ, CL, GC) with comprehensive cost accounting. It provides multiple interfaces (REST API, Streamlit UI) and uses Decimal-based math for precision.
 
 **Key Mission**: Enable traders to model P&L accurately by accounting for all costs: position sizing, stop-loss placement, fees, slippage, federal taxes (short-term ordinary + §1256 60/40), margin interest (up to 3 cascading loans), and energy costs.
 
@@ -11,7 +11,7 @@
 ## Architecture & Data Flow
 
 ```
-User Input (CLI/API/UI)
+User Input (API/UI)
     ↓
 Pydantic Schemas (validation)
     ↓
@@ -35,7 +35,7 @@ Output (JSON/CSV/table)
      `qty = min(floor(available_risk / risk_$_per_contract), floor(equity * leverage / (entry * ppv)))`.
      The second term is the buying-power cap; distinct ValueErrors explain which constraint failed.
    - **ATR/structure**: `stop = entry ± max(k_atr * ATR, structure distance)` rounded to tick;
-     qty from the *rounded* stop distance. CLI-exposed via `--atr/--k-atr/--swing`.
+     qty from the *rounded* stop distance.
 
 3. **`src/stoploss/cashflow.py`**: Calculates `PnLResult` with gross/net for win and loss scenarios. Includes all costs: fees, slippage, energy, margin interest, taxes.
 
@@ -47,7 +47,7 @@ Output (JSON/CSV/table)
 
 6. **`src/stoploss/energy.py`**: Estimates energy cost using EIA Table 5.3 (US avg ~14¢/kWh). Cache-friendly design.
 
-7. **`src/stoploss/schemas.py`**: Pydantic v2 models for input validation and output serialization. All have JSON examples for CLI/API.
+7. **`src/stoploss/schemas.py`**: Pydantic v2 models for input validation and output serialization. All have JSON examples for the API.
 
 ---
 
@@ -82,15 +82,6 @@ pytest -m "not slow" -v                   # Skip external API calls
 pytest --cov=src/stoploss                 # Coverage report
 ```
 
-### Running the CLI
-```bash
-python -m stoploss size --symbol ES --side long --entry 5050 \
-  --equity 25000 --leverage 12 --pct-stop 0.004 --risk 2500 --fees-open 2 --fees-close 2
-
-python -m stoploss pnl --symbol ES --side long --entry 5050 --target 5100 --stop 5029.75 \
-  --qty 1 --fees-open 2 --fees-close 2 --tax-mode 1256 --st-rate 0.24 --lt-rate 0.15
-```
-
 ### Running the Streamlit UI
 ```bash
 streamlit run simple_dashboard.py
@@ -117,11 +108,9 @@ entry = Decimal(str(entry))  # Always this pattern
 ### Validation
 - **Pydantic schemas** handle UI/API input validation (`SizingInput`, `PnLInput`, etc.).
 - **Calculation modules** (sizing, cashflow) do minimal validation; assume clean Decimals.
-- **CLI** uses Typer `Option(...)` with help strings; see `cli.py` for examples.
 
 ### Error Handling
 - Raise `ValueError` with descriptive messages in core modules.
-- CLI catches exceptions and exits with code 1 + error message.
 - Streamlit UI catches and displays errors in red alert boxes.
 
 ### Margin Loans (3-Slot Cascading)
@@ -140,13 +129,7 @@ total_interest = calculate_total_margin_interest(loans)
 1. Create `src/stoploss/<module>.py` with docstring (math references + IRS links).
 2. Define Decimal-based functions; return dataclass or Decimal.
 3. Add unit tests in `tests/test_<module>.py` with golden-file fixtures (e.g., test data from IRS examples).
-4. Export in `src/stoploss/__init__.py` for CLI/API convenience.
-
-### Update CLI Command
-1. Edit `src/stoploss/cli.py`, add `@app.command()` function.
-2. Use `typer.Option(...)` for all params; coerce to `Decimal` inside.
-3. Import calculation function; call it; print results with `typer.echo()`.
-4. Test: `python -m stoploss <cmd> --help` and run sample.
+4. Export in `src/stoploss/__init__.py` for API convenience.
 
 ### Update Streamlit UI
 1. Edit `ui_app.py`; add input widget (left column) or result display (right column).
